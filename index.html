@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>樱花车站 · 日式微缩场景</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#7cbcec;}
+  #c{display:block;width:100%;height:100%;cursor:grab;}
+  #c:active{cursor:grabbing;}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const rand=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[(Math.random()*a.length)|0];
+const lerp=(a,b,t)=>a+(b-a)*t;
+window.addEventListener('error',e=>{window.__diag=window.__diag||{err:null,train:0};window.__diag.err=String(e.message||e.error).slice(0,140);});
+
+try{
+/* ================= 基础 ================= */
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('c'),antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+let VW=innerWidth||1280, VH=innerHeight||720;
+renderer.setSize(VW,VH);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.02;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(40,VW/VH,0.1,500);
+camera.position.set(38,27,41);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.target.set(0,1,-2);
+controls.enableDamping=true;controls.dampingFactor=.08;
+controls.minDistance=10;controls.maxDistance=95;
+controls.minPolarAngle=.12;controls.maxPolarAngle=1.5;
+addEventListener('resize',()=>{VW=innerWidth||VW;VH=innerHeight||VH;camera.aspect=VW/VH;camera.updateProjectionMatrix();renderer.setSize(VW,VH);});
+
+/* ================= 三渲二工具 ================= */
+const gc=document.createElement('canvas');gc.width=4;gc.height=1;
+{const g=gc.getContext('2d');['#5a6078','#8a94b4','#c2cbdd','#ffffff'].forEach((c,i)=>{g.fillStyle=c;g.fillRect(i,0,1,1);});}
+const gradMap=new THREE.CanvasTexture(gc);
+gradMap.minFilter=gradMap.magFilter=THREE.NearestFilter;
+gradMap.colorSpace=THREE.NoColorSpace;
+function toonMat(color,o={}){
+  const m=new THREE.MeshToonMaterial({color,gradientMap:gradMap});
+  if(o.map)m.map=o.map;
+  if(o.emissive){m.emissive=new THREE.Color(o.emissive);m.emissiveIntensity=o.ei??1;}
+  if(o.opacity!==undefined){m.transparent=true;m.opacity=o.opacity;}
+  if(o.side)m.side=o.side;
+  return m;
+}
+const outlineMat=new THREE.MeshBasicMaterial({color:0x2e2a36,side:THREE.BackSide});
+function outlined(geo,mat,{scale=1.04,outMat}={}){
+  const g=new THREE.Group();
+  const m=new THREE.Mesh(geo,mat);
+  const o=new THREE.Mesh(geo,outMat||outlineMat);
+  o.scale.setScalar(scale);
+  g.add(m,o);return g;
+}
+const U=new THREE.BoxGeometry(1,1,1);
+function addT(parent,geo,mat,x,y,z,{r,s,cs=true,rs=true}={}){
+  const m=new THREE.Mesh(geo,mat);
+  m.position.set(x,y,z);
+  if(r)m.rotation.set(r[0],r[1],r[2]);
+  if(s)m.scale.set(s[0],s[1],s[2]);
+  m.castShadow=cs;m.receiveShadow=rs;
+  parent.add(m);return m;
+}
+function addO(parent,geo,mat,x,y,z,{r,s,sc=1.04,outMat}={}){
+  const g=outlined(geo,mat,{scale:sc,outMat});
+  g.position.set(x,y,z);
+  if(r)g.rotation.set(r[0],r[1],r[2]);
+  if(s)g.scale.set(s[0],s[1],s[2]);
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  parent.add(g);return g;
+}
+function ctex(w,h,draw,srgb=true){
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  draw(cv.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(cv);
+  if(srgb)t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+function radialTex(inner,outer,size=128){
+  const t=ctex(size,size,(c,w,h)=>{
+    const g=c.createRadialGradient(w/2,h/2,size*0.04,w/2,h/2,w/2);
+    g.addColorStop(0,inner);g.addColorStop(1,outer);
+    c.fillStyle=g;c.fillRect(0,0,w,h);
+  });
+  return t;
+}
+function roundRectShape(w,h,r){
+  const s=new THREE.Shape();const x=-w/2;
+  s.moveTo(x,r);s.lineTo(x,h-r);s.quadraticCurveTo(x,h,x+r,h);
+  s.lineTo(x+w-r,h);s.quadraticCurveTo(x+w,h,x+w,h-r);
+  s.lineTo(x+w,r);s.quadraticCurveTo(x+w,0,x+w-r,0);
+  s.lineTo(x+r,0);s.quadraticCurveTo(x,0,x,r);
+  return s;
+}
+const contactTex=radialTex('rgba(18,24,18,0.5)','rgba(18,24,18,0)');
+function contactShadow(parent,x,z,s){
+  const m=new THREE.SpriteMaterial({map:contactTex,transparent:true,opacity:.8,depthWrite:false});
+  const sp=new THREE.Sprite(m);sp.scale.set(s,s,1);sp.position.set(x,0.03,z);
+  sp.renderOrder=1;parent.add(sp);return sp;
+}
+
+/* ================= 灯光 ================= */
+scene.add(new THREE.HemisphereLight(0xbfe0ff,0xd8c9a6,1.05));
+const sun=new THREE.DirectionalLight(0xfff1d6,2.9);
+sun.position.set(40,62,26);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-52;sun.shadow.camera.right=52;
+sun.shadow.camera.top=52;sun.shadow.camera.bottom=-52;
+sun.shadow.camera.near=10;sun.shadow.camera.far=200;
+sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.035;
+scene.add(sun);scene.add(sun.target);
+const fill=new THREE.DirectionalLight(0xa9c9ea,0.5);
+fill.position.set(-34,26,-42);scene.add(fill);
+
+/* ================= 天空 ================= */
+scene.background=ctex(16,256,(c,w,h)=>{
+  const g=c.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#4d9fe0');g.addColorStop(.45,'#7cc0f0');g.addColorStop(.8,'#c4e6fa');g.addColorStop(1,'#eef8ff');
+  c.fillStyle=g;c.fillRect(0,0,w,h);
+});
+const sunCore=new THREE.Sprite(new THREE.SpriteMaterial({map:radialTex('rgba(255,252,235,1)','rgba(255,244,200,0)'),transparent:true,depthWrite:false,fog:false}));
+sunCore.scale.set(9,9,1);
+sunCore.position.copy(sun.position.clone().normalize().multiplyScalar(150));scene.add(sunCore);
+const sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:radialTex('rgba(255,248,220,.5)','rgba(255,248,220,0)'),transparent:true,depthWrite:false,fog:false,opacity:.5}));
+sunGlow.scale.set(26,26,1);sunGlow.position.copy(sunCore.position);scene.add(sunGlow);
+/* 云 */
+const clouds=[];
+const cloudMat=toonMat(0xffffff);
+const cloudShade=toonMat(0xdce9f5);
+for(let i=0;i<12;i++){
+  const g=new THREE.Group();
+  const n=3+(Math.random()*2|0);
+  for(let j=0;j<n;j++){
+    const r=rand(1.6,3.2);
+    addT(g,new THREE.SphereGeometry(r,10,8),j===0?cloudMat:cloudShade,rand(-3,3),rand(-.6,.6),rand(-1.4,1.4),{s:[1.35,.72,1],cs:false,rs:false});
+  }
+  g.scale.setScalar(rand(.7,1.5));
+  g.position.set(rand(-85,85),rand(21,38),rand(-48,18));
+  scene.add(g);
+  clouds.push({g,v:rand(.22,.5)});
+}
+/* 云影 */
+const shadowTex=radialTex('rgba(30,44,72,.55)','rgba(30,44,72,0)');
+const cloudShadows=[];
+for(let i=0;i<3;i++){
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:shadowTex,transparent:true,opacity:.09,depthWrite:false}));
+  sp.scale.set(rand(24,32),rand(24,32),1);sp.position.set(rand(-30,30),14+i*4.5,i===0?-10:(i===1?8:-22));
+  scene.add(sp);cloudShadows.push({sp,v:rand(.35,.6)});
+}
+
+/* ================= 底座 ================= */
+const S=28; // 半宽
+function groundTexture(){
+  const W=2048,s=W/56,cv=document.createElement('canvas');cv.width=cv.height=W;
+  const c=cv.getContext('2d');
+  const X=x=>(x+28)*s,Z=z=>(z+28)*s;
+  const R=(x0,z0,x1,z1,col)=>{c.fillStyle=col;c.fillRect(X(x0),Z(z0),X(x1)-X(x0),Z(z1)-Z(z0));};
+  R(-28,-28,28,28,'#8cbf74');
+  for(let i=0;i<280;i++){c.fillStyle=pick(['rgba(122,180,102,.14)','rgba(168,214,150,.13)','rgba(94,152,78,.10)']);
+    c.beginPath();c.ellipse(rand(0,W),rand(0,W),rand(8,46),rand(6,30),rand(0,6.28),0,6.28);c.fill();}
+  R(-28,-13.5,28,-6.5,'#b2a28e');
+  for(let i=0;i<1600;i++){c.fillStyle=pick(['rgba(90,80,68,.18)','rgba(190,180,165,.16)','rgba(120,110,96,.15)']);
+    c.fillRect(rand(X(-28),X(28)),rand(Z(-13.5),Z(-6.5)),rand(1,4),rand(1,3));}
+  R(-28,-11.2,28,-8.8,'#a2917c');
+  R(15,-12.2,25,26.4,'#888b90');
+  for(let i=0;i<320;i++){c.fillStyle='rgba(60,62,66,.10)';c.fillRect(rand(X(15),X(25)),rand(Z(-12),Z(26)),rand(1,3),rand(1,3));}
+  R(15,-12.2,25,-8,'#9a9285');
+  for(let i=0;i<6;i++){const x=15.7+i*1.55;R(x,-11.6,x+0.5,-8.6,'rgba(240,240,235,.85)');}
+  R(-26,-5,26,1.2,'#d6cfc0');
+  R(-26,9.5,28,16.2,'#cdc5b8');
+  c.strokeStyle='rgba(150,142,126,.55)';c.lineWidth=1.4;
+  for(let x=-26;x<=28.1;x+=0.85){c.beginPath();c.moveTo(X(x),Z(9.5));c.lineTo(X(x),Z(16.2));c.stroke();}
+  for(let z=9.5;z<=16.21;z+=0.85){c.beginPath();c.moveTo(X(-26),Z(z));c.lineTo(X(28),Z(z));c.stroke();}
+  for(let i=0;i<110;i++){c.fillStyle=pick(['rgba(190,182,166,.16)','rgba(214,206,190,.16)']);
+    c.fillRect(X(-26+((Math.random()*54/0.85)|0)*0.85),Z(9.5+((Math.random()*6.7/0.85)|0)*0.85),0.85*s*0.98,0.85*s*0.98);}
+  R(-26,9.5,28,9.85,'#b7afa0');
+  R(-22.5,10.2,-13.5,14.6,'#d8d2c4');
+  c.strokeStyle='rgba(150,142,126,.6)';c.strokeRect(X(-22.5),Z(10.2),X(-13.5)-X(-22.5),Z(14.6)-Z(10.2));
+  R(-12.4,1.2,12.4,9.4,'#cdc6b7');
+  R(-28,16.2,28,18.4,'#c7c1b3');
+  c.strokeStyle='rgba(140,133,120,.5)';
+  for(let x=-28;x<=28;x+=2.2){c.beginPath();c.moveTo(X(x),Z(16.2));c.lineTo(X(x),Z(18.4));c.stroke();}
+  R(-28,18.4,15,26.4,'#85888d');
+  for(let i=0;i<420;i++){c.fillStyle='rgba(58,60,64,.09)';c.fillRect(rand(X(-28),X(15)),rand(Z(18.4),Z(26.4)),rand(1,3),rand(1,3));}
+  c.fillStyle='rgba(238,238,234,.85)';
+  c.fillRect(X(-28),Z(18.8),X(15)-X(-28),2.2);
+  c.fillRect(X(-28),Z(25.9),X(15)-X(-28),2.2);
+  for(let x=-27;x<15;x+=4)c.fillRect(X(x),Z(22.35),s*2,3);
+  c.fillStyle='#b5afa2';
+  c.fillRect(X(-28),Z(26.4),X(15)-X(-28),3);
+  c.fillRect(X(15),Z(26.4),X(25)-X(15),3);
+  const g=c.createRadialGradient(W/2,W/2,W*0.42,W/2,W/2,W*0.72);
+  g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(38,52,34,.22)');
+  c.fillStyle=g;c.fillRect(0,0,W,W);
+  c.strokeStyle='#5d7d4e';c.lineWidth=5;c.strokeRect(3,3,W-6,W-6);
+  const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;
+  t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
+}
+const groundGeo=new THREE.PlaneGeometry(56,56);groundGeo.rotateX(-Math.PI/2);
+const ground=new THREE.Mesh(groundGeo,new THREE.MeshLambertMaterial({map:groundTexture()}));
+ground.receiveShadow=true;scene.add(ground);
+/* 土截面 + 木框 */
+const soilTex=ctex(1024,128,(c,w,h)=>{
+  const g=c.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#7c6247');g.addColorStop(.18,'#6d543c');g.addColorStop(.55,'#5d4733');g.addColorStop(1,'#4a382a');
+  c.fillStyle=g;c.fillRect(0,0,w,h);
+  c.fillStyle='#6f9c5b';c.fillRect(0,0,w,10);
+  c.fillStyle='#8cbf74';
+  for(let i=0;i<420;i++)c.fillRect(rand(0,w),rand(0,8),2,rand(2,6));
+  for(let i=0;i<900;i++){c.fillStyle=pick(['rgba(120,100,78,.35)','rgba(40,32,24,.3)','rgba(150,135,115,.25)']);
+    c.beginPath();c.ellipse(rand(0,w),rand(14,124),rand(1.5,4),rand(1,2.6),rand(0,6.28),0,6.28);c.fill();}
+});
+const soil=new THREE.Mesh(new THREE.BoxGeometry(56,2.6,56),toonMat(0xffffff,{map:soilTex}));
+soil.position.y=-1.31;soil.receiveShadow=true;scene.add(soil);
+const baseFrameMat=toonMat(0x6d4c30);
+[[-28.45,0,57.6,.5,.7],[28.45,0,57.6,.5,.7]].forEach(p=>{
+  addT(scene,U,baseFrameMat,p[0],-2.32,p[2]*0,{s:[p[3],p[4],p[2]]});
+});
+addT(scene,U,baseFrameMat,0,-2.32,-28.45,{s:[56.4,.5,.7]});
+addT(scene,U,baseFrameMat,0,-2.32,28.45,{s:[56.4,.5,.7]});
+const underShadow=new THREE.Sprite(new THREE.SpriteMaterial({map:radialTex('rgba(25,35,55,.5)','rgba(25,35,55,0)'),transparent:true,opacity:.4,depthWrite:false}));
+underShadow.scale.set(76,76,1);underShadow.position.set(0,-5.6,0);scene.add(underShadow);
+
+/* ================= 铁轨 ================= */
+const railMat=toonMat(0xa9b4bf);
+addT(scene,U,railMat,0,.32,-10.62,{s:[56,.15,.13],cs:true});
+addT(scene,U,railMat,0,.32,-9.38,{s:[56,.15,.13],cs:true});
+const sleepers=new THREE.InstancedMesh(new THREE.BoxGeometry(.95,.09,2.3),toonMat(0x6d675f),102);
+{const d=new THREE.Object3D();let i=0;
+ for(let x=-27.5;x<=27.5&&i<102;x+=.55){d.position.set(x,.2, -10);d.updateMatrix();sleepers.setMatrixAt(i++,d.matrix);}
+ sleepers.count=i;sleepers.instanceMatrix.needsUpdate=true;sleepers.castShadow=true;sleepers.receiveShadow=true;scene.add(sleepers);}
+const spliceMat=toonMat(0x5c646d);
+for(let x=-24;x<=24;x+=6){
+  addT(scene,U,spliceMat,x,.32,-10.62,{s:[.26,.17,.15],cs:false});
+  addT(scene,U,spliceMat,x,.32,-9.38,{s:[.26,.17,.15],cs:false});
+}
+
+/* ================= 站台 ================= */
+const PLAT_Y=.55;
+function platTexture(){
+  const W=2048,H=256,cx=W/52,cy=H/6.2,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const c=cv.getContext('2d');
+  const X=x=>(x+26)*cx,P=z=>(z+5)*cy;
+  c.fillStyle='#dcd5c6';c.fillRect(0,0,W,H);
+  c.strokeStyle='rgba(150,143,128,.5)';c.lineWidth=2;
+  for(let x=-26;x<=26;x+=2.8){c.beginPath();c.moveTo(X(x),0);c.lineTo(X(x),H);c.stroke();}
+  c.fillStyle='#b3ac9b';c.fillRect(0,0,W,cy*.2);          // 台缘
+  c.fillStyle='#e2be58';c.fillRect(0,cy*.6,W,cy*.6);       // 盲道带
+  c.fillStyle='#c8a53e';
+  for(let x=-25.6;x<25.6;x+=.34)for(let z=-4.45;z<=-3.95;z+=.34){c.beginPath();c.arc(X(x),P(z),3,0,6.28);c.fill();}
+  for(let i=0;i<400;i++){c.fillStyle='rgba(120,112,96,.06)';c.fillRect(rand(0,W),rand(0,H),rand(1,4),rand(1,3));}
+  const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;
+  t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
+}
+const platBox=addO(scene,new THREE.BoxGeometry(52,.55,6.2),toonMat(0xd8d1c2),0,PLAT_Y/2,-1.9,{sc:1.01});
+const platTopGeo=new THREE.PlaneGeometry(52,6.2);platTopGeo.rotateX(-Math.PI/2);
+const platTop=new THREE.Mesh(platTopGeo,new THREE.MeshLambertMaterial({map:platTexture()}));
+platTop.position.set(0,PLAT_Y+.001,-1.9);platTop.receiveShadow=true;scene.add(platTop);
+/* 雨棚 */
+const canMat=toonMat(0x7c8894);
+for(const zz of[-5.05,-.95])for(let x=-24;x<=24;x+=6)
+  addT(scene,U,canMat,x,PLAT_Y+1.7,zz,{s:[.16,3.4,.16]});
+addT(scene,U,canMat,0,PLAT_Y+3.38,-5.05,{s:[48.5,.18,.14]});
+addT(scene,U,canMat,0,PLAT_Y+3.38,-.95,{s:[48.5,.18,.14]});
+addT(scene,U,canMat,-24.2,PLAT_Y+3.38,-2.95,{s:[.14,.18,4.5]});
+addT(scene,U,canMat,24.2,PLAT_Y+3.38,-2.95,{s:[.14,.18,4.5]});
+/* 玻璃材质（列车倒影扫过） */
+const glassMats=[];
+function glassMat(flip=1){
+  const m=new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,side:THREE.DoubleSide,
+    uniforms:{uTime:{value:0},uTrain:{value:-1000},uTrain2:{value:-1000},uFlip:{value:flip},
+      uBase:{value:new THREE.Color(0xcdeaf5)},uAlpha:{value:.24}},
+    vertexShader:`uniform float uFlip;varying vec2 vUv;varying float vX;
+      void main(){vUv=uv;vX=position.x*uFlip;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`uniform float uTime,uTrain,uTrain2,uAlpha;uniform vec3 uBase;
+      varying vec2 vUv;varying float vX;
+      void main(){
+        float b1=exp(-pow((vX-uTrain)/4.0,2.0));
+        float b2=exp(-pow((vX-uTrain2)/5.0,2.0));
+        float band=min(b1+b2,1.0)*0.45;
+        float diag=0.05*sin(vX*0.4-uTime*0.5);
+        vec3 col=mix(uBase,vec3(1.0),vUv.y*0.22+diag);
+        col+=vec3(0.55,0.65,0.75)*band;
+        float a=uAlpha+band+0.015*sin(vUv.x*36.0)+0.02*sin(vUv.y*24.0);
+        gl_FragColor=vec4(col,clamp(a,0.0,0.92));
+      }`});
+  glassMats.push(m);return m;
+}
+const canGlassGeo=new THREE.PlaneGeometry(48.6,4.5);canGlassGeo.rotateX(-Math.PI/2);
+const canGlass=new THREE.Mesh(canGlassGeo,glassMat());
+canGlass.position.set(0,PLAT_Y+3.44,-2.95);canGlass.renderOrder=20;scene.add(canGlass);
+const canUnderGeo=new THREE.PlaneGeometry(48.4,4.3);canUnderGeo.rotateX(Math.PI/2);
+const canUnder=new THREE.Mesh(canUnderGeo,new THREE.MeshBasicMaterial({color:0xf5e7c5,transparent:true,opacity:.13,side:THREE.DoubleSide}));
+canUnder.position.set(0,PLAT_Y+3.36,-2.95);canUnder.renderOrder=5;scene.add(canUnder);
+/* 长椅 */
+function bench(parent,x,y,z,ry=0,w=2.4){
+  const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;
+  addT(g,U,toonMat(0xc9c2b2),0,.06,0,{s:[w+.3,.12,1.0]});
+  const wood=toonMat(0x9a6b42);
+  addT(g,U,wood,0,.42,0,{s:[w,.06,.55]});
+  addT(g,U,wood,0,.36,.3,{s:[w,.05,.06]});
+  addT(g,U,toonMat(0x6e4a2c),-w/2+.15,.2,0,{s:[.08,.32,.5]});
+  addT(g,U,toonMat(0x6e4a2c),w/2-.15,.2,0,{s:[.08,.32,.5]});
+  parent.add(g);return g;
+}
+bench(scene,-9,PLAT_Y,-2.6);
+bench(scene,4.5,PLAT_Y,-2.6);
+bench(scene,-7,.05,12.8);
+/* 垃圾桶 */
+function trashcan(x,y,z){
+  const g=new THREE.Group();g.position.set(x,y,z);
+  addT(g,new THREE.CylinderGeometry(.3,.26,.72,10),toonMat(0x67727d),0,.36,0);
+  addT(g,new THREE.CylinderGeometry(.32,.32,.06,10),toonMat(0x55606a),0,.75,0);
+  scene.add(g);return g;
+}
+trashcan(-1.5,PLAT_Y,-2.2);
+/* 站台路灯 */
+function lamp(x,y,z,h=4.0){
+  const g=new THREE.Group();g.position.set(x,y,z);
+  addT(g,new THREE.CylinderGeometry(.05,.07,h,8),toonMat(0x4c545e),0,h/2,0);
+  addT(g,U,toonMat(0x4c545e),.28,h-.1,0,{s:[.6,.06,.06]});
+  const head=addT(g,U,toonMat(0xfff2cc,{emissive:0xffe9b0,ei:.25}),.55,h-.18,0,{s:[.34,.14,.18]});
+  scene.add(g);return g;
+}
+lamp(-16,PLAT_Y,-1.0);lamp(13,PLAT_Y,-1.0);
+/* 自动贩卖机 */
+const vendMats=[];
+function vending(x,y,z,ry,c1,c2,label){
+  const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;
+  const front=ctex(256,512,(c,w,h)=>{
+    c.fillStyle=c1;c.fillRect(0,0,w,h);
+    c.fillStyle=c2;c.fillRect(8,8,w-16,70);
+    c.fillStyle='#f7f3e8';c.font='bold 40px "Segoe UI",Arial';c.textAlign='center';c.fillText(label,w/2,56);
+    const cols=['#f0f4f8','#eef1f4','#f3f0ea'];
+    for(let r=0;r<3;r++)for(let i=0;i<4;i++){
+      c.fillStyle=cols[(r+i)%3];c.fillRect(16+i*58,100+r*110,48,88);
+      const can=pick(['#d9534f','#e8a33d','#4f9fd9','#7fb56a','#b06ad0','#e0705f']);
+      c.fillStyle=can;c.beginPath();c.arc(40+i*58,144+r*110,15,0,6.28);c.fill();
+      c.fillStyle='rgba(255,255,255,.5)';c.fillRect(26+i*58,120+r*110,8,30);
+    }
+    c.fillStyle='#2e343c';c.fillRect(16,448,w-32,52);
+    c.fillStyle='#c9d2da';c.fillRect(w-96,458,40,32);
+    c.fillStyle='#1c2126';c.fillRect(28,458,70,14);
+  });
+  const side=toonMat(0x3f4854),top=toonMat(0x5a6470);
+  const fmat=toonMat(0xffffff,{map:front});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.05,2.0,.6),[side,side,top,top,fmat,side]);
+  body.position.y=1.0;body.castShadow=true;body.receiveShadow=true;g.add(body);
+  const sign=addT(g,U,toonMat(0xfff7e0,{emissive:0xfff2c8,ei:.9}),0,2.06,.31,{s:[.8,.1,.02]});
+  vendMats.push(sign.material);
+  scene.add(g);return g;
+}
+vending(14.6,PLAT_Y,-1.7,Math.PI/2,'#4f8fc4','#3a6f9c','COLA');
+vending(16.7,PLAT_Y,-1.7,Math.PI/2,'#e09a4f','#b87a34','JUICE');
+contactShadow(scene,15.6,PLAT_Y+.1,-1.7,2.4);
+/* 站台时钟 */
+const clockHands=[];
+function clockFace(){
+  return ctex(256,256,(c,w,h)=>{
+    c.fillStyle='#f7f5ef';c.beginPath();c.arc(128,128,126,0,7);c.fill();
+    c.strokeStyle='#3a4148';c.lineWidth=8;c.beginPath();c.arc(128,128,118,0,7);c.stroke();
+    for(let i=0;i<60;i++){const a=i/60*6.283,L=i%5===0?22:10;
+      c.strokeStyle=i%5===0?'#333a41':'#9aa1a8';c.lineWidth=i%5===0?6:2.5;
+      c.beginPath();c.moveTo(128+Math.sin(a)*(112-L),128-Math.cos(a)*(112-L));
+      c.lineTo(128+Math.sin(a)*112,128-Math.cos(a)*112);c.stroke();}
+    c.fillStyle='#5a636c';c.font='bold 26px "Segoe UI",Arial';c.textAlign='center';
+    c.fillText('12',128,78);c.fillText('6',128,196);c.fillText('3',186,138);c.fillText('9',70,138);
+  });
+}
+function clock(x,y,z,ry,rad=.55){
+  const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;
+  addT(g,U,toonMat(0x4a5560),0,0,0,{s:[rad*2.2,rad*2.2,.12]});
+  const face=clockFace();
+  const cg=new THREE.CircleGeometry(rad,32);
+  const fm=new THREE.MeshBasicMaterial({map:face});
+  addT(g,cg,fm,0,0,.065,{cs:false});
+  const back=addT(g,cg,new THREE.MeshBasicMaterial({color:0xf0ede6}),0,0,-.065,{r:[0,Math.PI,0],cs:false});
+  const mk=(wd,ln,col,off,zp)=>{
+    const p=new THREE.Group();p.position.set(0,0,zp);g.add(p);
+    addT(p,U,toonMat(col,{emissive:col,ei:.12}),0,off,0,{s:[wd,ln,.02]});
+    return p;
+  };
+  const hr=mk(.07,.42,0x333a41,.15,.075);
+  const mn=mk(.05,.6,0x333a41,.23,.082);
+  const sc=mk(.025,.66,0xd24b4b,.24,.09);
+  addT(g,new THREE.SphereGeometry(.045,8,8),toonMat(0x333a41),0,0,.09,{cs:false});
+  clockHands.push({hr,mn,sc});
+  scene.add(g);return g;
+}
+clock(0,PLAT_Y+2.15,-3.0,0,.5);
+/* 站牌/方向标 */
+const signDir=ctex(384,256,(c,w,h)=>{
+  c.fillStyle='#f7f5ee';c.fillRect(0,0,w,h);
+  c.strokeStyle='#c94f4f';c.lineWidth=8;c.strokeRect(6,6,w-12,h-12);
+  c.fillStyle='#2c3640';c.font='bold 52px "Yu Mincho",serif';c.textAlign='center';
+  c.fillText('←  改札口',w/2,95);
+  c.fillText('出口  →',w/2,185);
+});
+{const g=new THREE.Group();g.position.set(7,PLAT_Y,-.9);
+ addT(g,new THREE.CylinderGeometry(.045,.05,2.4,8),toonMat(0x4c545e),0,1.2,0);
+ addT(g,U,toonMat(0xf7f5ee,{map:signDir}),0,2.3,0,{s:[1.6,.1,1.05]});
+ scene.add(g);}
+
+/* ================= 站房 ================= */
+const B={x0:-12,x1:12,z0:1.2,z1:9.2,fy:PLAT_Y,h:3.05};
+const woodMat=toonMat(0xb5824f),woodDark=toonMat(0x8a5a33),frameMat=toonMat(0x4a5560);
+const bldgRoofMat=toonMat(0x5a5045);
+/* 墙体 */
+addO(scene,new THREE.BoxGeometry(.25,B.h,B.z1-B.z0),woodMat,B.x0,B.fy+B.h/2,(B.z0+B.z1)/2,{sc:1.03});
+addO(scene,new THREE.BoxGeometry(.25,B.h,B.z1-B.z0),woodMat,B.x1,B.fy+B.h/2,(B.z0+B.z1)/2,{sc:1.03});
+/* 立面：玻璃 + 木带 + 基座 */
+const wallC=(B.z0+B.z1)/2;
+addT(scene,U,woodDark,0,.28,B.z1,{s:[24,.56,.3]});
+addT(scene,U,woodDark,0,B.fy+B.h+.26,B.z1,{s:[24,.52,.3]});
+const southGlassGeo=new THREE.PlaneGeometry(23,2.24);
+const southGlass=new THREE.Mesh(southGlassGeo,glassMat());
+southGlass.position.set(0,B.fy+1.86,B.z1+.02);southGlass.renderOrder=20;scene.add(southGlass);
+for(let i=0;i<11;i++){
+  const x=-11.5+i*2.3;
+  addT(scene,U,frameMat,x,B.fy+1.86,B.z1+.05,{s:[.09,2.24,.09]});
+}
+/* 玻璃门 */
+addT(scene,U,frameMat,-1.35,B.fy+1.86,B.z1+.06,{s:[.1,2.3,.12]});
+addT(scene,U,frameMat,1.35,B.fy+1.86,B.z1+.06,{s:[.1,2.3,.12]});
+addT(scene,U,frameMat,0,B.fy+2.98,B.z1+.06,{s:[2.8,.12,.12]});
+const doorGlass=new THREE.Mesh(new THREE.PlaneGeometry(2.5,2.1),new THREE.MeshPhongMaterial({color:0x9fc8dc,transparent:true,opacity:.42,shininess:80}));
+doorGlass.position.set(0,B.fy+1.78,B.z1+.045);doorGlass.renderOrder=18;scene.add(doorGlass);
+addT(scene,new THREE.CylinderGeometry(.03,.03,2.0,8),toonMat(0xcfd6dd),-.5,B.fy+1.7,B.z1+.12,{r:[Math.PI/2,0,0],cs:false});
+addT(scene,new THREE.CylinderGeometry(.03,.03,2.0,8),toonMat(0xcfd6dd),.5,B.fy+1.7,B.z1+.12,{r:[Math.PI/2,0,0],cs:false});
+/* 北侧玻璃（站台侧） */
+const northGlass=new THREE.Mesh(new THREE.PlaneGeometry(22,2.1),glassMat(-1));
+northGlass.position.set(0,B.fy+1.72,B.z0+.02);northGlass.rotation.y=Math.PI;northGlass.renderOrder=20;scene.add(northGlass);
+for(let i=0;i<10;i++){
+  const x=-11+i*2.2;
+  addT(scene,U,frameMat,x,B.fy+1.72,B.z0+.05,{s:[.09,2.1,.09]});
+}
+addT(scene,U,woodDark,0,B.fy+.35,B.z0,{s:[24,.5,.3]});
+/* 站名牌 */
+const stSign=ctex(1024,384,(c,w,h)=>{
+  c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);
+  c.strokeStyle='#c94f4f';c.lineWidth=16;c.strokeRect(20,20,w-40,h-40);
+  c.fillStyle='#2c3640';c.font='bold 180px "Yu Mincho","Microsoft YaHei",serif';c.textAlign='center';
+  c.fillText('桜 丘 駅',w/2,225);
+  c.fillStyle='#5a6470';c.font='bold 52px "Segoe UI",Arial';
+  c.fillText('SAKURAYAMA ST.',w/2,320);
+});
+addT(scene,U,toonMat(0xffffff,{map:stSign}),-.5,B.fy+B.h+.3,B.z1+.62,{s:[10.4,1.5,.06]});
+addT(scene,U,toonMat(0x4a5560),-5,B.fy+B.h+.3,B.z1+.47,{s:[.14,.14,.42],cs:false});
+addT(scene,U,toonMat(0x4a5560),4,B.fy+B.h+.3,B.z1+.47,{s:[.14,.14,.42],cs:false});
+/* 屋顶 */
+addO(scene,new THREE.BoxGeometry(24.8,.35,8.8),bldgRoofMat,0,B.fy+B.h+.35,wallC,{sc:1.02});
+addT(scene,U,woodDark,0,B.fy+B.h+.55,B.z1+.05,{s:[24.8,.08,.1]});
+addT(scene,U,woodDark,0,B.fy+B.h+.55,B.z0+.05,{s:[24.8,.08,.1]});
+// 屋顶通风设备
+addT(scene,U,toonMat(0x8a929c),2.5,B.fy+B.h+.72,4.5,{s:[1.2,.42,.9]});
+addT(scene,U,toonMat(0x767e88),7.5,B.fy+B.h+.68,5.5,{s:[.9,.36,.7]});
+addT(scene,U,toonMat(0x99a1ab),10.5,B.fy+B.h+.66,3.4,{s:[.7,.3,.6]});
+addT(scene,U,toonMat(0x5f6a74),5,B.fy+B.h+.6,6.8,{s:[.5,.24,.5]})
+/* 站员楼 */
+addO(scene,new THREE.BoxGeometry(6,1.85,5.6),toonMat(0xa8794a),-8.6,B.fy+B.h+.35+.92,5.4,{sc:1.03});
+addT(scene,U,toonMat(0x4f5960),-8.6,B.fy+B.h+.35+1.9,5.4,{s:[6.4,.18,5.9]});
+const roomSign=ctex(256,128,(c,w,h)=>{
+  c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);
+  c.strokeStyle='#4a5560';c.lineWidth=8;c.strokeRect(8,8,w-16,h-16);
+  c.fillStyle='#2c3640';c.font='bold 64px "Yu Mincho","Microsoft YaHei",serif';c.textAlign='center';
+  c.fillText('駅員室',w/2,88);
+});
+addT(scene,U,toonMat(0xffffff,{map:roomSign}),-8.6,B.fy+B.h+1.1,8.25,{s:[2.6,.9,.05]});
+addT(scene,U,toonMat(0x2e3d4a),-9.6,B.fy+B.h+1.0,8.24,{s:[.9,1.0,.04],cs:false});
+addT(scene,U,toonMat(0x2e3d4a),-7.4,B.fy+B.h+1.0,8.24,{s:[.9,1.0,.04],cs:false});
+/* 内部地板与天花板 */
+const floorGeo=new THREE.PlaneGeometry(23.6,7.8);floorGeo.rotateX(-Math.PI/2);
+const floor=new THREE.Mesh(floorGeo,new THREE.MeshLambertMaterial({color:0xefe9da}));
+floor.position.set(0,PLAT_Y+.012,wallC);floor.receiveShadow=true;scene.add(floor);
+/* 地面导视 */
+addT(scene,U,toonMat(0x4f8fc4,{emissive:0x4f8fc4,ei:.15}),0,PLAT_Y+.02,7.6,{s:[.55,.012,3.2],cs:false});
+addT(scene,U,toonMat(0xe8c55a,{emissive:0xe8c55a,ei:.12}),8.5,PLAT_Y+.02,7.0,{s:[.55,.012,4.4],cs:false});
+const ceilGeo=new THREE.PlaneGeometry(23.6,7.8);ceilGeo.rotateX(Math.PI/2);
+const ceil=new THREE.Mesh(ceilGeo,new THREE.MeshLambertMaterial({color:0xf4f2ec}));
+ceil.position.set(0,B.fy+B.h-.06,wallC);scene.add(ceil);
+const stripMat=toonMat(0xfff2d0,{emissive:0xffedc0,ei:1.25});
+[-8,-2,4,10].forEach(x=>addT(scene,U,stripMat,x,B.fy+B.h-.1,5.2,{s:[2.2,.05,.14],cs:false}));
+const pl1=new THREE.PointLight(0xffe9c4,1.9,24);pl1.position.set(-5,B.fy+2.6,5);scene.add(pl1);
+const pl2=new THREE.PointLight(0xffe9c4,1.9,24);pl2.position.set(8,B.fy+2.6,4.5);scene.add(pl2);
+const pl3=new THREE.PointLight(0xfff4e0,1.2,18);pl3.position.set(0,B.fy+2.8,7.5);scene.add(pl3);
+/* 检票口 */
+const gateLights=[];
+for(let i=0;i<3;i++){
+  const gx=-2.4+i*2.4;
+  addO(scene,new THREE.BoxGeometry(.3,1.05,.4),toonMat(0x5a6470),gx,PLAT_Y+.53,6.9,{sc:1.06});
+  addT(scene,U,toonMat(0xcfd6dd),gx,PLAT_Y+1.12,6.9,{s:[.34,.06,.44]});
+  const lm=addT(scene,U,toonMat(0x2f9e57,{emissive:0x43d17a,ei:.9}),gx,PLAT_Y+1.22,6.9,{s:[.14,.1,.14],cs:false});
+  gateLights.push(lm.material);
+}
+const gateSign=ctex(512,128,(c,w,h)=>{
+  c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);
+  c.strokeStyle='#2c5a8c';c.lineWidth=8;c.strokeRect(8,8,w-16,h-16);
+  c.fillStyle='#2c5a8c';c.font='bold 72px "Yu Mincho","Microsoft YaHei",serif';c.textAlign='center';
+  c.fillText('改 札',w/2,90);
+});
+addT(scene,U,toonMat(0xffffff,{map:gateSign}),0,B.fy+2.5,6.9,{s:[3.4,.7,.06],cs:false});
+/* 自动售票机 */
+function ticketMachine(x){
+  const g=new THREE.Group();g.position.set(x,PLAT_Y,7.6);g.rotation.y=Math.PI;
+  const scr=ctex(128,128,(c,w,h)=>{
+    c.fillStyle='#bfe0f5';c.fillRect(0,0,w,h);
+    c.fillStyle='rgba(44,54,64,.85)';c.font='bold 30px Arial';c.textAlign='center';
+    c.fillText('切符購入',w/2,52);
+    for(let i=0;i<4;i++)c.fillRect(20,70+i*14,w-40,8);
+  });
+  const body=addT(g,U,toonMat(0x3f4854),0,.95,0,{s:[1.0,1.9,.55]});
+  addT(g,U,toonMat(0xffffff,{map:scr}),0,1.35,.29,{s:[.5,.5,.02],cs:false});
+  addT(g,U,toonMat(0x232830),-.2,.6,.29,{s:[.5,.16,.02],cs:false});
+  addT(g,U,toonMat(0xd24b4b),.25,1.72,.29,{s:[.2,.14,.03],cs:false});
+  scene.add(g);
+}
+ticketMachine(5.2);ticketMachine(6.9);
+/* 候车区 */
+bench(scene,-8,PLAT_Y+.01,5.1,0,2.6);
+bench(scene,-8,PLAT_Y+.01,6.7,0,2.6);
+const infoSign=ctex(256,256,(c,w,h)=>{
+  c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);
+  c.strokeStyle='#c94f4f';c.lineWidth=10;c.strokeRect(8,8,w-16,h-16);
+  c.fillStyle='#2c3640';c.font='bold 60px "Yu Mincho",serif';c.textAlign='center';
+  c.fillText('案内',w/2,70);
+  c.fillStyle='#5a6470';
+  for(let i=0;i<5;i++)c.fillRect(30,92+i*28,w-60,10);
+});
+{const g=new THREE.Group();g.position.set(-4.2,PLAT_Y,5.9);
+ addT(g,new THREE.CylinderGeometry(.04,.05,1.5,8),toonMat(0x4c545e),0,.75,0);
+ addT(g,U,toonMat(0xffffff,{map:infoSign}),0,1.62,0,{s:[.95,.08,.95],r:[0,.5,0]});
+ scene.add(g);}
+/* 失物招领 */
+{const g=new THREE.Group();g.position.set(-1.2,PLAT_Y,5.6);
+ addT(g,U,toonMat(0xc9c2b2),0,.3,0,{s:[.9,.6,.5]});
+ addO(g,new THREE.BoxGeometry(.8,.35,.42),toonMat(0x9a6b42),0,.72,0,{sc:1.08});
+ const ls=ctex(128,64,(c,w,h)=>{
+   c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);c.strokeStyle='#4a5560';c.lineWidth=5;c.strokeRect(4,4,w-8,h-8);
+   c.fillStyle='#2c3640';c.font='bold 34px "Yu Mincho",serif';c.textAlign='center';c.fillText('失物',w/2,44);
+ });
+ addT(g,U,toonMat(0xffffff,{map:ls}),0,1.02,0,{s:[.7,.36,.04],cs:false});
+ scene.add(g);}
+/* 线路图 + 时刻表 */
+const routeMap=ctex(512,640,(c,w,h)=>{
+  c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);
+  c.fillStyle='#2c3640';c.font='bold 56px "Yu Mincho",serif';c.textAlign='center';c.fillText('路線図',w/2,70);
+  const lines=[['#d24b4b',180],['#4f8fc4',330],['#7fb56a',480]];
+  lines.forEach(([col,y])=>{
+    c.strokeStyle=col;c.lineWidth=22;c.beginPath();c.moveTo(60,y);c.lineTo(w-60,y);c.stroke();
+    for(let i=0;i<5;i++){
+      const x=90+i*(w-180)/4;
+      c.fillStyle=i===2?'#ffffff':col;c.strokeStyle='#2c3640';c.lineWidth=6;
+      c.beginPath();c.arc(x,y,16,0,6.28);c.fill();c.stroke();
+      if(i===2){c.fillStyle='#d24b4f';c.font='bold 26px "Yu Mincho",serif';c.fillText('桜丘',x,y-30);}
+    }
+  });
+});
+addT(scene,U,toonMat(0xffffff,{map:routeMap}),-5.5,PLAT_Y+1.9,B.z1-.12,{s:[2.3,2.9,.06],r:[0,Math.PI,0],cs:false});
+const timetable=ctex(512,384,(c,w,h)=>{
+  c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);
+  c.fillStyle='#2c5a8c';c.fillRect(0,0,w,64);
+  c.fillStyle='#fff';c.font='bold 40px "Yu Mincho",serif';c.textAlign='center';c.fillText('時 刻 表',w/2,46);
+  c.fillStyle='#3a4148';c.font='26px "Segoe UI",Arial';c.textAlign='left';
+  const rows=['↑ 市役所前  07:21  08:21','↓ 中央ターミナル  07:26  08:26','↑ 市役所前  09:21  10:21','↓ 中央ターミナル  09:26  10:26','↑ 市役所前  15:21  16:21'];
+  rows.forEach((s,i)=>c.fillText(s,30,110+i*56));
+});
+addT(scene,U,toonMat(0xffffff,{map:timetable}),1.2,PLAT_Y+2.1,B.z1-.12,{s:[1.7,1.3,.06],r:[0,Math.PI,0],cs:false});
+/* 墙钟 */
+clock(-11.8,PLAT_Y+1.75,4.5,Math.PI/2,.42);
+/* 小卖部 */
+function kiosk(){
+  const g=new THREE.Group();g.position.set(0,PLAT_Y,0);scene.add(g);
+  const wood=toonMat(0xc99a5f);
+  // 货架（靠北墙）
+  for(const sx of[7.2,10.0]){
+    addT(g,U,toonMat(0x8a5a33),sx-.9,.95,2.1,{s:[.12,1.9,.55]});
+    addT(g,U,toonMat(0x8a5a33),sx+.9,.95,2.1,{s:[.12,1.9,.55]});
+    for(let r=0;r<4;r++)addT(g,U,wood,sx,.35+r*.52,2.1,{s:[1.9,.06,.5]});
+    const items=new THREE.InstancedMesh(new THREE.BoxGeometry(.22,.3,.22),toonMat(0xffffff),16);
+    const dm=new THREE.Object3D();const cols=['#d9534f','#e8a33d','#4f9fd9','#7fb56a','#b06ad0','#f08a8a'];
+    let k=0;
+    for(let r=0;r<4;r++)for(let i=0;i<4;i++){
+      dm.position.set(sx-.75+i*.5,.56+r*.52,2.1);dm.updateMatrix();
+      items.setMatrixAt(k,dm.matrix);
+      items.setColorAt(k,new THREE.Color(pick(cols)));k++;
+    }
+    items.instanceColor.needsUpdate=true;items.castShadow=true;g.add(items);
+  }
+  // 饮料柜
+  {const cx=5.9,cz=3.4;
+   addO(g,new THREE.BoxGeometry(1.3,1.8,.7),toonMat(0x3f4854),cx,.9,cz,{sc:1.05});
+   const dm2=new THREE.Mesh(new THREE.PlaneGeometry(1.06,1.5),new THREE.MeshPhongMaterial({color:0xa8d4e8,transparent:true,opacity:.4,shininess:90}));
+   dm2.position.set(cx,.95,cz+.36);g.add(dm2);
+   const cans=new THREE.InstancedMesh(new THREE.CylinderGeometry(.055,.055,.22,8),toonMat(0xffffff),12);
+   const dm=new THREE.Object3D();
+   for(let r=0;r<3;r++)for(let i=0;i<4;i++){
+     dm.position.set(cx-.45+i*.3,.42+r*.5,cz);dm.updateMatrix();
+     cans.setMatrixAt(r*4+i,dm.matrix);
+     cans.setColorAt(r*4+i,new THREE.Color(pick(['#d9534f','#4f9fd9','#e8a33d','#7fb56a'])));
+   }
+   cans.instanceColor.needsUpdate=true;g.add(cans);
+  }
+  // 杂志架
+  {const cx=10.7,cz=4.6;
+   addT(g,U,toonMat(0x8a5a33),cx,.9,cz,{s:[.1,1.8,.7]});
+   for(let r=0;r<3;r++){
+     addT(g,U,wood,cx,.45+r*.5,cz-.05,{s:[.5,.06,.6],r:[.5,0,0]});
+     for(let i=0;i<6;i++)addT(g,U,toonMat(pick(['#d9534f','#e8a33d','#4f9fd9','#7fb56a','#b06ad0','#666'])),cx,.5+r*.5,cz-.15-i*.05,{s:[.05,.3,.34],cs:false});
+   }
+  }
+  // 柜台 + 便当
+  {const cx=8.5,cz=4.9;
+   addO(g,new THREE.BoxGeometry(3.4,.95,.7),wood,cx,.48,cz,{sc:1.04});
+   addT(g,U,toonMat(0xd8d2c2),cx,.99,cz,{s:[3.2,.06,.6],cs:false});
+   for(let i=0;i<4;i++){
+     addT(g,U,toonMat(0xf5f2ea),cx-1.2+i*.8,1.12,cz,{s:[.55,.16,.4],cs:false});
+     addT(g,U,toonMat(0x3f4854),cx-1.2+i*.8,1.21,cz,{s:[.58,.03,.42],cs:false});
+     addT(g,U,toonMat(0x7fb56a),cx-1.2+i*.8,1.12,cz+.14,{s:[.14,.1,.1],cs:false});
+   }
+   const bg=new THREE.Mesh(new THREE.PlaneGeometry(3.2,.7),new THREE.MeshPhongMaterial({color:0xcfe8f5,transparent:true,opacity:.3}));
+   bg.position.set(cx,1.4,cz-.28);g.add(bg);
+   // 收银机
+   addT(g,U,toonMat(0x3f4854),cx+1.3,1.15,cz,{s:[.4,.3,.3]});
+  }
+  // 挂招牌
+  const ks=ctex(256,128,(c,w,h)=>{
+    c.fillStyle='#f5e9c8';c.fillRect(0,0,w,h);c.strokeStyle='#8a5a33';c.lineWidth=8;c.strokeRect(6,6,w-12,h-12);
+    c.fillStyle='#6e4526';c.font='bold 54px "Yu Mincho","Microsoft YaHei",serif';c.textAlign='center';
+    c.fillText('軽食・飲料',w/2,84);
+  });
+  addT(g,U,toonMat(0xffffff,{map:ks}),8.5,3.0,4.2,{s:[2.2,.7,.05],cs:false});
+  return g;
+}
+kiosk();
+/* 站员室 */
+{const g=new THREE.Group();g.position.set(0,PLAT_Y,0);scene.add(g);
+ const part=toonMat(0xb5824f);
+ addT(g,U,part,-10.5,.05+1.5,3.0,{s:[2.4,3.0,.12]});        // 南隔墙
+ addT(g,U,part,-9.3,.05+1.5,2.9,{s:[.12,3.0,1.4]});          // 东隔墙
+ addT(g,U,new THREE.MeshPhongMaterial({color:0xa8d4e8,transparent:true,opacity:.4}),-10.5,.05+1.5,3.0,{s:[1.2,.06,.02],r:[0,Math.PI/2,0],cs:false});
+ // 玻璃门
+ addT(g,U,frameMat,-9.3,.05+1.5,2.2,{s:[.1,3.0,.1]});
+ addT(g,U,frameMat,-10.5,.05+1.5,2.2,{s:[1.2,.1,.1]});
+ const door=addT(g,U,new THREE.MeshPhongMaterial({color:0xa8d4e8,transparent:true,opacity:.45}),-10,.05+1.5,2.2,{s:[1.0,2.9,.06],r:[0,Math.PI/2,0],cs:false});
+ // 桌椅设备
+ addT(g,U,toonMat(0x9a6b42),-10.9,.05+.72,2.0,{s:[1.5,.08,.7]});
+ addT(g,U,toonMat(0x8a5a33),-11.4,.05+.36,2.0,{s:[.12,.72,.6]});
+ addT(g,U,toonMat(0x8a5a33),-10.4,.05+.36,2.0,{s:[.12,.72,.6]});
+ addT(g,U,toonMat(0x3f4854),-11.1,.05+1.0,1.95,{s:[.5,.4,.04]});
+ addT(g,U,toonMat(0x22262c),-11.1,.05+1.05,1.97,{s:[.44,.3,.01],cs:false});
+ const lampM=addT(g,U,toonMat(0xfff2cc,{emissive:0xffe0a0,ei:.8}),-10.4,.05+.95,2.2,{s:[.16,.3,.12],cs:false});
+ addT(g,U,toonMat(0x8a929c),-10.2,.05+.8,3.6,{s:[.9,1.6,.45]});
+ addT(g,U,toonMat(0x5a6470),-11.4,.05+.3,3.5,{s:[.4,.6,.3]});
+}
+/* 门上方小牌 */
+const exitSign=ctex(384,128,(c,w,h)=>{
+  c.fillStyle='#f9f7f0';c.fillRect(0,0,w,h);c.strokeStyle='#2c5a8c';c.lineWidth=8;c.strokeRect(8,8,w-16,h-16);
+  c.fillStyle='#2c5a8c';c.font='bold 60px "Yu Mincho","Microsoft YaHei",serif';c.textAlign='center';
+  c.fillText('改札・出口',w/2,88);
+});
+addT(scene,U,toonMat(0xffffff,{map:exitSign}),0,B.fy+2.9,B.z1+.12,{s:[2.4,.8,.05],cs:false});
+
+/* ================= 站前广场 / 街道 ================= */
+const railMetal=toonMat(0x808c96);
+{const g=new THREE.Group();scene.add(g);
+ for(let x=-25;x<=14.2;x+=1.3)addT(g,new THREE.CylinderGeometry(.045,.045,.9,6),railMetal,x,.45,16.0);
+ addT(g,U,railMetal,-5.3,.92,16.0,{s:[39.8,.07,.07]});
+ addT(g,U,railMetal,-5.3,.55,16.0,{s:[39.8,.05,.05]});
+ for(let x=25.5;x<=27.5;x+=1)addT(g,new THREE.CylinderGeometry(.045,.045,.9,6),railMetal,x,.45,16.0);
+}
+lamp(-18,.05,17.2,4.6);lamp(0,.05,17.2,4.6);lamp(11,.05,17.2,4.6);
+/* 出租车 */
+function taxi(){
+  const g=new THREE.Group();g.position.set(9.5,0,19.9);scene.add(g);
+  const bodyMat=toonMat(0xf0c24f);
+  addO(g,new THREE.BoxGeometry(2.7,.9,1.5),bodyMat,0,.72,0,{sc:1.03});
+  addO(g,new THREE.BoxGeometry(1.5,.6,1.34),bodyMat,-.1,1.45,0,{sc:1.05});
+  const win=new THREE.MeshPhongMaterial({color:0x37474f,transparent:true,opacity:.85,shininess:100});
+  addT(g,new THREE.BoxGeometry(1.44,.52,1.28),win,-.1,1.46,0,{cs:false});
+  const check=ctex(128,32,(c,w,h)=>{
+    c.fillStyle='#f0f0ec';c.fillRect(0,0,w,h);
+    c.fillStyle='#2c3e50';for(let i=0;i<8;i++)if(i%2===0)c.fillRect(i*16,0,16,h);
+  });
+  addT(g,U,toonMat(0xffffff,{map:check}),0,.98,0,{s:[2.72,.13,1.52],cs:false});
+  const wheelG=new THREE.CylinderGeometry(.3,.3,.16,14);
+  [[.85,.62],[-.85,.62],[.85,-.62],[-.85,-.62]].forEach(p=>{
+    addT(g,wheelG,toonMat(0x2f3338),p[0],.3,p[1],{r:[Math.PI/2,0,0]});
+    addT(g,new THREE.CylinderGeometry(.14,.14,.17,10),toonMat(0xcfd6dd),p[0],.3,p[1],{r:[Math.PI/2,0,0],cs:false});
+  });
+  const ts=ctex(128,64,(c,w,h)=>{
+    c.fillStyle='#f7f5ee';c.fillRect(0,0,w,h);c.strokeStyle='#c94f4f';c.lineWidth=6;c.strokeRect(4,4,w-8,h-8);
+    c.fillStyle='#c94f4f';c.font='bold 34px Arial';c.textAlign='center';c.fillText('TAXI',w/2,44);
+  });
+  addT(g,U,toonMat(0xffffff,{map:ts}),-.1,1.85,0,{s:[.5,.24,.34],cs:false});
+  addT(g,new THREE.CylinderGeometry(.09,.09,.05,10),toonMat(0xfff7d6,{emissive:0xfff2c0,ei:.9}),1.36,.62,.5,{r:[0,0,Math.PI/2],cs:false});
+  addT(g,new THREE.CylinderGeometry(.09,.09,.05,10),toonMat(0xfff7d6,{emissive:0xfff2c0,ei:.9}),1.36,.62,-.5,{r:[0,0,Math.PI/2],cs:false});
+  contactShadow(scene,9.5,20,3.2);
+}
+taxi();
+/* TAXI 站牌 */
+{const g=new THREE.Group();g.position.set(6,0,16.7);scene.add(g);
+ addT(g,new THREE.CylinderGeometry(.045,.05,2.2,8),toonMat(0x4c545e),0,1.1,0);
+ const t2=ctex(128,256,(c,w,h)=>{
+   c.fillStyle='#f7f5ee';c.fillRect(0,0,w,h);c.strokeStyle='#c94f4f';c.lineWidth=10;c.strokeRect(6,6,w-12,h-12);
+   c.fillStyle='#c94f4f';c.font='bold 60px Arial';c.textAlign='center';c.fillText('TAXI',w/2,110);
+   c.fillStyle='#2c3640';c.beginPath();c.moveTo(w/2,190);c.lineTo(w/2-26,230);c.lineTo(w/2+26,230);c.closePath();c.fill();
+ });
+ addT(g,U,toonMat(0xffffff,{map:t2}),0,2.3,0,{s:[.8,1.6,.06]});
+}
+/* 自行车停车处 */
+function bike(x,z,ry,col){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry;
+  const frameM=toonMat(col),tireM=toonMat(0x34383e);
+  const tg=new THREE.TorusGeometry(.3,.045,8,20);
+  addT(g,tg,tireM,-.55,.3,0);
+  addT(g,tg,tireM,.55,.3,0);
+  const tube=(a,b,r=.03)=>{
+    const dx=b[0]-a[0],dy=b[1]-a[1];const len=Math.hypot(dx,dy);
+    const m=addT(g,new THREE.CylinderGeometry(r,r,len,6),frameM,(a[0]+b[0])/2,(a[1]+b[1])/2,0);
+    m.rotation.z=Math.atan2(dx,dy);
+  };
+  tube([-0.55,0.3],[-0.12,0.85]);tube([-0.12,0.85],[0.05,0.35]);tube([-0.55,0.3],[0.05,0.35]);
+  tube([0.05,0.35],[0.4,0.78]);tube([0.4,0.78],[0.55,0.3],.025);
+  addT(g,U,frameM,.42,.88,0,{s:[.06,.14,.06]});
+  addT(g,U,toonMat(0x2f3338),.36,.95,0,{s:[.3,.05,.08],r:[0,0,-.4]});
+  addT(g,U,toonMat(0x2f3338),-.16,.93,0,{s:[.24,.05,.09],r:[0,0,.15]});
+  addT(g,U,toonMat(0xd8d2c2),.52,.72,0,{s:[.3,.24,.26]});
+  addT(g,U,toonMat(pick(['#d9534f','#4f9fd9','#e8a33d'])),.52,.86,0,{s:[.14,.1,.14],cs:false});
+  scene.add(g);
+}
+{const g=new THREE.Group();scene.add(g);
+ for(const zz of[11.2,13.8]){
+   addT(g,new THREE.CylinderGeometry(.04,.04,7,8),railMetal,-18,.5,zz,{r:[0,0,Math.PI/2]});
+   for(let x=-21.4;x<=-14.6;x+=1.7)addT(g,new THREE.CylinderGeometry(.04,.05,.5,6),railMetal,x,.25,zz);
+ }
+ bike(-20.6,11.6,.15,0xb0483e);bike(-19,12.4,-.2,0x3a6ea5);
+ bike(-17.2,11.7,.3,0x2f3338);bike(-15.8,13.4,-.1,0x4f8f6a);
+}
+/* 路牌 */
+{const g=new THREE.Group();g.position.set(14.6,0,17.2);scene.add(g);
+ addT(g,new THREE.CylinderGeometry(.05,.06,2.6,8),toonMat(0x4c545e),0,1.3,0);
+ const bs=ctex(128,128,(c,w,h)=>{
+   c.fillStyle='#2c62a8';c.beginPath();c.arc(64,64,60,0,6.28);c.fill();
+   c.strokeStyle='#fff';c.lineWidth=8;c.beginPath();c.arc(64,64,54,0,6.28);c.stroke();
+   c.fillStyle='#fff';c.font='bold 56px "Yu Mincho",serif';c.textAlign='center';c.fillText('駅',64,84);
+ });
+ addT(g,U,toonMat(0xffffff,{map:bs}),0,2.3,0,{s:[.62,.62,.05]});
+ const gs=ctex(256,160,(c,w,h)=>{
+   c.fillStyle='#f7f5ee';c.fillRect(0,0,w,h);c.strokeStyle='#c94f4f';c.lineWidth=8;c.strokeRect(6,6,w-12,h-12);
+   c.fillStyle='#2c3640';c.font='bold 52px "Yu Mincho","Microsoft YaHei",serif';c.textAlign='center';
+   c.fillText('桜丘駅',w/2,80);c.fillText('↑ 50m',w/2,134);
+ });
+ addT(g,U,toonMat(0xffffff,{map:gs}),0,1.55,0,{s:[1.1,.7,.05]});
+}
+/* 绿篱 */
+function hedge(x,z,s=1){
+  const g=new THREE.Group();g.position.set(x,0,z);
+  for(let i=0;i<3;i++){
+    addT(g,new THREE.IcosahedronGeometry(rand(.5,.8)*s,1),toonMat(pick([0x4f7d4a,0x5d8a54,0x46703f])),rand(-.6,.6)*s,.4*s,rand(-.3,.3)*s,{s:[1.3,.8,1]});
+  }
+  scene.add(g);
+}
+hedge(-24,-16,.8);hedge(24,-16,.8);
+
+/* ================= 道口 ================= */
+const barrierMat=ctex(512,32,(c,w,h)=>{
+  c.fillStyle='#e8e6e0';c.fillRect(0,0,w,h);
+  c.fillStyle='#d24b4b';for(let i=0;i<8;i++)if(i%2===0)c.fillRect(i*64,0,64,h);
+});
+const barrierMatT=toonMat(0xffffff,{map:barrierMat});
+let barrierArm,signalLights=[];
+{const g=new THREE.Group();g.position.set(24.6,0,-8.3);scene.add(g);
+ addO(g,new THREE.CylinderGeometry(.14,.18,1.5,10),toonMat(0xe8e6e0),0,.75,0,{sc:1.15});
+ addT(g,new THREE.CylinderGeometry(.15,.15,.12,10),toonMat(0xd24b4b),0,1.42,0,{cs:false});
+ barrierArm=new THREE.Group();barrierArm.position.set(0,1.45,0);g.add(barrierArm);
+ addT(barrierArm,U,barrierMatT,-4.7,.02,0,{s:[9.4,.18,.14]});
+ // 信号
+ const sg=new THREE.Group();sg.position.set(-9,0,0);g.add(sg);
+ addT(sg,new THREE.CylinderGeometry(.1,.12,1.4,8),toonMat(0xe8e6e0),0,.7,0);
+ addO(sg,new THREE.BoxGeometry(.62,1.1,.4),toonMat(0xf2f2f2),0,1.9,0,{sc:1.08});
+ const lm1=addT(sg,new THREE.CylinderGeometry(.13,.13,.08,12),toonMat(0xd24b4b,{emissive:0xd24b4b,ei:.12}),-.15,1.9,.22,{r:[Math.PI/2,0,0],cs:false});
+ const lm2=addT(sg,new THREE.CylinderGeometry(.13,.13,.08,12),toonMat(0xd24b4b,{emissive:0xd24b4b,ei:.12}),.15,1.9,.22,{r:[Math.PI/2,0,0],cs:false});
+ signalLights=[lm1.material,lm2.material];
+ // 道口警示牌
+ const cw=ctex(128,128,(c,w,h)=>{
+   c.fillStyle='#f7f5ee';c.fillRect(0,0,w,h);
+   c.strokeStyle='#c94f4f';c.lineWidth=10;c.lineJoin='round';
+   c.beginPath();c.moveTo(64,14);c.lineTo(118,108);c.lineTo(10,108);c.closePath();c.stroke();
+   c.fillStyle='#2c3640';c.fillRect(46,58,32,26);c.fillRect(40,52,10,8);c.fillRect(78,52,10,8);
+   c.beginPath();c.arc(52,88,6,0,6.28);c.arc(76,88,6,0,6.28);c.fill();
+ });
+ addT(sg,U,toonMat(0xffffff,{map:cw}),0,.9,0,{s:[.8,.8,.05],cs:false});
+ addT(sg,new THREE.CylinderGeometry(.03,.03,.5,6),toonMat(0x4c545e),0,.55,0,{cs:false});
+}
+
+/* ================= 电线杆 ================= */
+const poleZ=-13.5,poleXs=[-25,-14,-3,8,19,27.5];
+const wireObjs=[];
+function sagWire(p1,p2,sag,pts=21,phase=0){
+  const base=new Float32Array(pts*3);
+  const pos=new Float32Array(pts*3);
+  const ctrl=new THREE.Vector3((p1.x+p2.x)/2,(p1.y+p2.y)/2-sag*2,(p1.z+p2.z)/2);
+  for(let i=0;i<pts;i++){
+    const u=i/(pts-1),iu=1-u;
+    const x=iu*iu*p1.x+2*iu*u*ctrl.x+u*u*p2.x;
+    const y=iu*iu*p1.y+2*iu*u*ctrl.y+u*u*p2.y;
+    const z=iu*iu*p1.z+2*iu*u*ctrl.z+u*u*p2.z;
+    base[i*3]=x;base[i*3+1]=y;base[i*3+2]=z;
+    pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z;
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x3a4148,transparent:true,opacity:.92}));
+  scene.add(line);
+  wireObjs.push({geo,base,phase,x0:Math.min(p1.x,p2.x),x1:Math.max(p1.x,p2.x)});
+  return line;
+}
+function messY(x){
+  const y0=6.4,sag=.9;
+  let u=.5,found=false;
+  for(let i=0;i<poleXs.length-1;i++){
+    if(x>=poleXs[i]&&x<=poleXs[i+1]){u=(x-poleXs[i])/(poleXs[i+1]-poleXs[i]);found=true;break;}
+  }
+  if(!found)u=x<poleXs[0]?0:1;
+  const iu=1-u;
+  return iu*iu*y0+2*iu*u*(y0-sag)+u*u*y0;
+}
+const poleMat=toonMat(0x8d8276);
+const insMat=toonMat(0xa8825a);
+poleXs.forEach((px,pi)=>{
+  const g=new THREE.Group();g.position.set(px,0,poleZ);scene.add(g);
+  addO(g,new THREE.CylinderGeometry(.09,.16,8.2,10),poleMat,0,4.1,0,{sc:1.12});
+  addT(g,new THREE.CylinderGeometry(.11,.11,.14,10),poleMat,0,8.25,0,{cs:false});
+  addT(g,U,poleMat,0,7.1,0,{s:[2.6,.09,.12]});
+  addT(g,U,poleMat,0,6.4,0,{s:[2.0,.08,.1]});
+  for(const yy of[7.1,6.4])for(const xx of[-1.15,-.35,.35,1.15]){
+    addT(g,new THREE.CylinderGeometry(.045,.05,.14,6),insMat,xx,yy+.1,0,{cs:false});
+  }
+  // 爬梯（背面）
+  addT(g,U,poleMat,0,4,-.17,{s:[.05,5.4,.05]});
+  addT(g,U,poleMat,.22,4,-.17,{s:[.05,5.4,.05]});
+  for(let i=0;i<9;i++)addT(g,U,poleMat,.11,1.6+i*.62,-.17,{s:[.26,.04,.04],cs:false});
+  // 接触网短臂
+  addT(g,U,poleMat,0,6.7,1.4,{s:[.07,.07,2.9]});
+  // 变压器
+  if(pi===3){
+    addT(g,new THREE.CylinderGeometry(.24,.24,.55,10),toonMat(0x5d6870),.3,5.4,.5);
+    for(let i=0;i<3;i++)addT(g,U,toonMat(0x6d7880),.3,5.4+i*.02,.5,{s:[.56,.1,.04],cs:false});
+    addT(g,new THREE.CylinderGeometry(.04,.06,.18,6),toonMat(0x4a545e),.16,5.72,.5,{cs:false});
+    addT(g,new THREE.CylinderGeometry(.04,.06,.18,6),toonMat(0x4a545e),.44,5.72,.5,{cs:false});
+  }
+  // 拉线
+  if(pi===0||pi===5){
+    const dir=pi===0?-1:1;
+    const anchor=new THREE.Vector3(px+dir*2.4,0.3,poleZ);
+    const a=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(px,6.2,poleZ),anchor]);
+    scene.add(new THREE.Line(a,new THREE.LineBasicMaterial({color:0x3a4148})));
+    addT(scene,new THREE.CylinderGeometry(.04,.05,.3,6),poleMat,anchor.x,.15,anchor.z,{cs:false});
+  }
+  // 碎石 + 杂草
+  for(let i=0;i<6;i++){
+    const a=rand(0,6.28),d=rand(.25,.7);
+    addT(scene,new THREE.DodecahedronGeometry(rand(.06,.12),0),toonMat(0x9a9188),px+Math.cos(a)*d,.06,poleZ+Math.sin(a)*d,{cs:false});
+  }
+  for(let i=0;i<4;i++){
+    const a=rand(0,6.28),d=rand(.3,.8);
+    addT(scene,new THREE.ConeGeometry(.05,.3,4),toonMat(pick([0x7fb56a,0x6aa054])),px+Math.cos(a)*d,.18,poleZ+Math.sin(a)*d,{cs:false});
+  }
+  // 贴纸
+  const stick=ctex(128,128,(c,w,h)=>{
+    c.fillStyle='#f7f5ee';c.fillRect(0,0,w,h);
+    c.strokeStyle='#c94f4f';c.lineWidth=8;c.strokeRect(6,6,w-12,h-12);
+    c.fillStyle='#c94f4f';c.font='bold 64px "Yu Mincho",serif';c.textAlign='center';
+    c.fillText(pi===4?'桜丘':'桜',w/2,88);
+  });
+  addT(g,U,toonMat(0xffffff,{map:stick}),0,4.1,.17,{s:[.42,.42,.03],cs:false});
+  contactShadow(scene,px,poleZ,1.6);
+});
+/* 电线 */
+for(let i=0;i<poleXs.length-1;i++){
+  for(const dz of[-.3,.3]){
+    sagWire(new THREE.Vector3(poleXs[i],7.0,poleZ+dz),new THREE.Vector3(poleXs[i+1],7.0,poleZ+dz),.55,21,i);
+  }
+  sagWire(new THREE.Vector3(poleXs[i],6.4,poleZ+2.8),new THREE.Vector3(poleXs[i+1],6.4,poleZ+2.8),.9,21,i+10);
+}
+// 承力索（接触网）
+const catenary=new THREE.BufferGeometry();
+{const N=60,arr=new Float32Array(N*3);
+ for(let i=0;i<N;i++){const x=-27.5+i*(55/(N-1));arr[i*3]=x;arr[i*3+1]=5.15;arr[i*3+2]=-10.1;}
+ catenary.setAttribute('position',new THREE.BufferAttribute(arr,3));}
+const catLine=new THREE.Line(catenary,new THREE.LineBasicMaterial({color:0x39424c,transparent:true,opacity:.95}));
+scene.add(catLine);
+wireObjs.push({geo:catenary,base:new Float32Array(catenary.attributes.position.array),phase:99,x0:-27.5,x1:27.5,contact:true});
+// 吊弦
+for(let x=-26;x<=26;x+=2.6){
+  const ym=messY(x);
+  const a=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,ym,poleZ+2.8),new THREE.Vector3(x,5.15,-10.1)]);
+  scene.add(new THREE.Line(a,new THREE.LineBasicMaterial({color:0x39424c,transparent:true,opacity:.8})));
+}
+// 进站房引下电线
+sagWire(new THREE.Vector3(-14,6.9,poleZ),new THREE.Vector3(-8.6,5.9,8.0),.8,21,20);
+sagWire(new THREE.Vector3(19,6.9,poleZ),new THREE.Vector3(11.9,4.1,8.9),.6,21,21);
+
+/* ================= 树 ================= */
+const treeSpots=[];
+function tree(x,z,s,kind='sakura'){
+  const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(s);scene.add(g);
+  const trunkC=kind==='sakura'?0x7a5a48:0x6d5343;
+  addO(g,new THREE.CylinderGeometry(.14,.3,2.4,7),toonMat(trunkC),0,1.2,0,{sc:1.15});
+  addT(g,new THREE.ConeGeometry(.42,.5,7),toonMat(trunkC),0,.25,0);
+  for(let i=0;i<4;i++){
+    const a=i*1.7+rand(-.4,.4);
+    const m=addT(g,new THREE.CylinderGeometry(.05,.09,1.2,6),toonMat(0x8a6a55),Math.cos(a)*.5,2.7,Math.sin(a)*.5);
+    m.rotation.set(Math.sin(a)*.9,0,-Math.cos(a)*.9);
+  }
+  const cols=kind==='sakura'?[0xf5aec9,0xf9c6d8,0xef94b8,0xf3b0c8]:[0x7fbf6a,0x95cf7f,0x6cae58,0x8cc874];
+  const blobs=[[0,3.6,0,1.7],[1.1,3.0,.5,1.2],[-1.1,3.1,-.4,1.25],[.4,3.0,1.1,1.05],[-.5,3.2,-1.0,1.1],[.9,3.9,-.8,.95],[-.9,3.85,.85,1.0]];
+  blobs.forEach((b,i)=>{
+    addT(g,new THREE.IcosahedronGeometry(b[3],1),toonMat(i%3===0?cols[0]:cols[i%cols.length]),b[0],b[1],b[2]);
+  });
+  if(kind==='sakura')addT(g,new THREE.IcosahedronGeometry(1.5,1),toonMat(0xe58bb0),0,2.9,0,{s:[1.2,1,1.2]});
+  contactShadow(scene,x,z,3.4*s);
+  treeSpots.push({x,z,kind,topY:4.6*s,s});
+  return g;
+}
+/* 站台樱花（沿站台松散排开，位置与尺寸错落） */
+tree(-22.5,-1.5,1.05).position.y=PLAT_Y;
+tree(-10.5,-1.0,1.15).position.y=PLAT_Y;
+tree(-0.5,-1.4,1.1).position.y=PLAT_Y;
+tree(11.5,-1.1,1.05).position.y=PLAT_Y;
+tree(21.5,-1.5,1.1).position.y=PLAT_Y;
+/* 站前对称一对 */
+tree(-14,10.4,.85);
+tree(13.8,10.6,.85);
+/* 前缘道路樱花行道树（成排，间距 8m，尺寸微差） */
+tree(-25,27.3,1.1);tree(-17,27.3,1.05);tree(-9,27.3,1.15);tree(-1,27.3,1.05);tree(7,27.3,1.1);tree(15,27.3,1.15);tree(23,27.3,1.05);
+/* 后排绿地（散植，不成排） */
+tree(-25,-19,1.6,'maple');
+tree(-16,-25,1.45,'maple');
+tree(-8,-18.5,1.3,'maple');
+tree(-1,-24,1.7,'maple');
+tree(7,-19,1.35,'maple');
+tree(14,-25.5,1.5,'maple');
+tree(21.5,-18.5,1.4,'maple');
+tree(19,-22.5,1.15);
+tree(-12,-20.5,1.1);
+/* 楼东侧绿地（散植两棵） */
+tree(13.5,3.2,.95,'maple');
+tree(14.6,6.8,.85,'maple');
+/* 侧街东缘 + 广场西角 */
+tree(26.2,12.8,.95);
+tree(-24,14.8,1.0,'maple');
+/* 花簇（instanced） */
+const bloomTexT=ctex(64,64,(c,w,h)=>{
+  for(let i=0;i<5;i++){
+    c.save();c.translate(32,32);c.rotate(i*1.257+rand(-.15,.15));
+    c.fillStyle=i%2?'#ffd6e5':'#ffe9f2';
+    c.beginPath();c.ellipse(0,-14,9,15,0,0,6.28);c.fill();c.restore();
+  }
+  c.fillStyle='#fff7a8';c.beginPath();c.arc(32,32,4,0,7);c.fill();
+});
+{const N=320;
+ const im=new THREE.InstancedMesh(new THREE.PlaneGeometry(.55,.55),new THREE.MeshBasicMaterial({map:bloomTexT,alphaTest:.4,side:THREE.DoubleSide}),N);
+ const d=new THREE.Object3D();
+ for(let i=0;i<N;i++){
+   const t=treeSpots[i%treeSpots.length];
+   if(t.kind!=='sakura'){d.position.set(t.x,rand(.5,1),t.z);d.scale.setScalar(.5);}
+   else{
+     const a=rand(0,6.28),r=rand(.4,1.6)*t.s;
+     d.position.set(t.x+Math.cos(a)*r,t.topY*rand(.75,1.05),t.z+Math.sin(a)*r);
+     d.scale.setScalar(rand(.7,1.15));
+   }
+   d.rotation.set(rand(-.6,.6),rand(0,6.28),rand(-.6,.6));
+   d.updateMatrix();im.setMatrixAt(i,d.matrix);
+ }
+ im.instanceMatrix.needsUpdate=true;scene.add(im);
+}
+/* 草丛 & 碎石 */
+{const paved=[[[-28,-13.5,28,-6.5]],[[-26,-5,26,1.2]],[[-12.4,1.2,12.4,9.4]],[[-26,9.5,28,16.2]],[[-28,16.2,28,18.4]],[[-28,18.4,15,26.4]],[[15,-12.2,25,26.4]]];
+ const inPaved=(x,z)=>paved[0].some(p=>x>=p[0]&&x<=p[2]&&z>=p[1]&&z<=p[3]);
+ const N=260;
+ const im=new THREE.InstancedMesh(new THREE.ConeGeometry(.05,.3,4),toonMat(0x6aa054),N);
+ const d=new THREE.Object3D();let k=0,guard=0;
+ while(k<N&&guard++<N*8){
+   const x=rand(-27.5,27.5),z=rand(-27.5,27.5);
+   if(inPaved(x,z))continue;
+   d.position.set(x,.14,z);d.rotation.set(rand(-.2,.2),rand(0,6.28),rand(-.2,.2));
+   d.scale.setScalar(rand(.7,1.4));d.updateMatrix();
+   im.setMatrixAt(k++,d.matrix);
+ }
+ im.count=k;im.instanceMatrix.needsUpdate=true;scene.add(im);
+ const N2=70;
+ const im2=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.09,0),toonMat(0x9a9188),N2);
+ let k2=0,guard2=0;
+ while(k2<N2&&guard2++<N2*8){
+   const x=rand(-27,27),z=rand(-27,27);
+   if(inPaved(x,z))continue;
+   d.position.set(x,.06,z);d.rotation.set(rand(0,6),rand(0,6),0);
+   d.scale.setScalar(rand(.6,1.5));d.updateMatrix();
+   im2.setMatrixAt(k2++,d.matrix);
+ }
+ im2.count=k2;im2.instanceMatrix.needsUpdate=true;scene.add(im2);
+}
+
+/* ================= 列车 ================= */
+const train={headX:-30,v:16,state:'wait',waitT:4};
+const cars=[];const wheelPivots=[];
+const trainGroup=new THREE.Group();scene.add(trainGroup);
+const winTex=ctex(128,128,(c,w,h)=>{
+  const g=c.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#7fb6dd');g.addColorStop(.45,'#ffd7e6');g.addColorStop(.75,'#d8e4ea');g.addColorStop(1,'#2c3a46');
+  c.fillStyle=g;c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=3;
+  c.beginPath();c.moveTo(0,40);c.lineTo(w,14);c.stroke();
+});
+renderer.localClippingEnabled=true;
+const trainClip=[new THREE.Plane(new THREE.Vector3(1,0,0),28),new THREE.Plane(new THREE.Vector3(-1,0,0),28)];
+const TM={body:toonMat(0xccd7e2),roof:toonMat(0xe9edf2),band:toonMat(0x4a7ab2),dark:toonMat(0x414a54),bogie:toonMat(0x333b44),win:toonMat(0x26333f,{map:winTex}),winFrame:toonMat(0x8fa3b3),door:toonMat(0xb9c7d4),doorWin:toonMat(0x2e3d4d,{map:winTex}),red:toonMat(0xd24b4b),noseWin:toonMat(0x223040,{map:winTex}),head:toonMat(0xfff7d6,{emissive:0xfff2c0,ei:1.4}),ring:toonMat(0xcfd6dd),ac:toonMat(0xd5dbe2),defl:toonMat(0x6a7683),ins:toonMat(0xe8e6e0),arm:toonMat(0x4a525c),shoe:toonMat(0x39424c),tail:toonMat(0xd9534f,{emissive:0xd9534f,ei:.6}),spoke:toonMat(0x8a929c),wheel:toonMat(0x565f69)};
+Object.keys(TM).forEach(k=>{TM[k].clippingPlanes=trainClip;TM[k].clipShadows=true;});
+const trainOutlineMat=outlineMat.clone();trainOutlineMat.clippingPlanes=trainClip;
+const CAR_LEN=11.2,PITCH=11.7;
+for(let i=0;i<2;i++){
+  const car=new THREE.Group();
+  car.position.set(-6.4-i*PITCH,0,-10);
+  addO(car,U,TM.body,0,2.15,0,{s:[CAR_LEN,2.5,2.6],sc:1.02,outMat:trainOutlineMat});
+  addO(car,U,TM.roof,0,3.55,0,{s:[11.6,.3,2.7],sc:1.03,outMat:trainOutlineMat});
+  addT(car,U,TM.band,0,1.9,0,{s:[11.24,.42,2.64],cs:false});
+  addT(car,U,TM.dark,0,.85,0,{s:[10.6,.3,2.1]});
+  // 窗
+  for(const zz of[1.31,-1.31]){
+    for(let w2=0;w2<6;w2++){
+      const wx=-3.42+w2*1.28;
+      addT(car,U,TM.winFrame,wx,2.62,zz*.995,{s:[1.05,.9,.05],cs:false});
+      addT(car,U,TM.win,wx,2.62,zz,{s:[.95,.8,.06],cs:false});
+    }
+    for(const dx of[-4.55,4.55]){
+      addT(car,U,TM.door,dx,1.95,zz,{s:[1.1,1.9,.08],cs:false});
+      addT(car,U,TM.doorWin,dx,2.55,zz,{s:[.8,.85,.06],cs:false});
+      addT(car,U,TM.red,dx,2.93,zz,{s:[1.1,.05,.09],cs:false});
+    }
+  }
+  // 转向架与轮
+  for(const bx of[-3.9,3.9]){
+    addT(car,U,TM.bogie,bx,1.0,0,{s:[2.3,.32,1.8]});
+    for(const wx of[bx-.75,bx+.75])for(const wz of[-.62,.62]){
+      const pv=new THREE.Group();pv.position.set(wx,.735,wz);car.add(pv);
+      addT(pv,new THREE.CylinderGeometry(.34,.34,.14,14),TM.wheel,0,0,0,{r:[Math.PI/2,0,0]});
+      addT(pv,U,TM.spoke,0,0,0,{s:[.05,.58,.15],cs:false});
+      addT(pv,U,TM.spoke,0,0,0,{s:[.58,.05,.15],cs:false});
+      wheelPivots.push(pv);
+    }
+  }
+  // 车顶空调
+  addT(car,U,TM.ac,-2.4,3.76,0,{s:[1.5,.22,1.7]});
+  addT(car,U,TM.ac,2.4,3.76,0,{s:[1.5,.22,1.7]});
+  // 车钩
+  if(i<1){
+    addT(car,U,TM.bogie,CAR_LEN/2+.25,1.05,0,{s:[.5,.4,.8]});
+    addT(car,U,TM.defl,CAR_LEN/2+.25,.65,0,{s:[.3,.5,1.6]});
+  }
+  if(i===0){
+    // 车头
+    const noseGeo=new THREE.ExtrudeGeometry(roundRectShape(2.7,2.9,.55),{depth:.9,bevelEnabled:false});
+    noseGeo.rotateY(Math.PI/2);noseGeo.translate(0,.85,0);
+    addO(car,noseGeo,TM.body,5.5,0,0,{sc:1.03,outMat:trainOutlineMat});
+    addT(car,U,TM.noseWin,6.36,2.5,0,{s:[.1,1.15,1.9],cs:false});
+    for(const hz of[-.75,.75]){
+      addT(car,new THREE.CylinderGeometry(.13,.13,.06,12),TM.head,6.42,1.4,hz,{r:[0,0,Math.PI/2],cs:false});
+      addT(car,new THREE.TorusGeometry(.13,.03,6,14),TM.ring,6.41,1.4,hz,{r:[0,Math.PI/2,0],cs:false});
+    }
+    addT(car,U,TM.dark,6.1,.9,0,{s:[.7,.5,2.2]});
+    // 受电弓
+    addT(car,new THREE.CylinderGeometry(.06,.07,.16,8),TM.ins,-3.5,3.82,0,{cs:false});
+    const arm1=addT(car,U,TM.arm,-3.7,4.25,0,{s:[.05,1.0,.18]});
+    arm1.rotation.z=.52;
+    const arm2=addT(car,U,TM.arm,-3.15,4.95,0,{s:[.05,.75,.16]});
+    arm2.rotation.z=-.58;
+    addT(car,U,TM.shoe,-2.85,5.12,0,{s:[.12,.06,1.5]});
+  }
+  if(i===1){
+    addT(car,U,TM.roof,-CAR_LEN/2-.15,2.2,0,{s:[.3,2.2,2.6]});
+    for(const hz of[-.8,.8])addT(car,new THREE.BoxGeometry(.06,.14,.2),TM.tail,-CAR_LEN/2-.3,1.5,hz,{cs:false});
+  }
+  cars.push(car);
+  trainGroup.add(car);
+}
+function speedAt(x){
+  const ks=[[-90,16],[-34,16],[-20,10],[-12,6],[0,5.2],[12,6],[20,10],[34,16],[90,16]];
+  if(x<=ks[0][0])return ks[0][1];
+  for(let i=0;i<ks.length-1;i++){
+    if(x>=ks[i][0]&&x<=ks[i+1][0]){
+      const t=(x-ks[i][0])/(ks[i+1][0]-ks[i][0]);
+      return lerp(ks[i][1],ks[i+1][1],t);
+    }
+  }
+  return ks[ks.length-1][1];
+}
+function carCenter(i){return train.headX-6.4-i*PITCH;}
+function windAt(x){
+  let w=0;
+  for(let i=0;i<2;i++){const d=x-carCenter(i);w=Math.max(w,Math.exp(-(d*d)/26));}
+  return w;
+}
+
+/* ================= 樱花瓣 ================= */
+const petalTexT=ctex(48,64,(c,w,h)=>{
+  const g=c.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#ffe3ee');g.addColorStop(1,'#ffb9d0');
+  c.fillStyle=g;
+  c.beginPath();
+  c.moveTo(24,60);c.bezierCurveTo(4,44,6,10,24,4);c.bezierCurveTo(42,10,44,44,24,60);c.fill();
+  c.fillStyle='#ff9fbe';c.beginPath();c.moveTo(24,60);c.lineTo(19,49);c.lineTo(29,49);c.closePath();c.fill();
+  c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=1.5;
+  c.beginPath();c.moveTo(24,55);c.quadraticCurveTo(21,30,24,10);c.stroke();
+});
+const PETALS=420;
+const petalGeo=new THREE.PlaneGeometry(.17,.22);petalGeo.rotateX(-Math.PI/2);
+const petalMesh=new THREE.InstancedMesh(petalGeo,new THREE.MeshBasicMaterial({map:petalTexT,alphaTest:.45,side:THREE.DoubleSide}),PETALS);
+petalMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(petalMesh);
+const petalData=[];
+function spawnPetal(d,first){
+  const t=pick(treeSpots.filter(s=>s.kind==='sakura'));
+  if(Math.random()<.75){
+    d.p.set(t.x+rand(-3,3),first?rand(1,13):rand(6,13),t.z+rand(-3,3));
+  }else{
+    d.p.set(rand(-26,26),first?rand(1,14):rand(5,14),rand(-8,26));
+  }
+  d.v.set(rand(-.2,.2),0,rand(-.2,.2));
+  d.e.set(rand(0,6.28),rand(0,6.28),rand(0,6.28));
+  d.ev.set(rand(-2,2),rand(-2,2),rand(-2,2));
+  d.s=rand(.8,1.3);d.state='fall';d.timer=0;d.ph=rand(0,6.28);
+}
+for(let i=0;i<PETALS;i++){
+  const d={p:new THREE.Vector3(),v:new THREE.Vector3(),e:new THREE.Euler(),ev:new THREE.Vector3(),s:1,state:'fall',timer:0,ph:0};
+  spawnPetal(d,true);petalData.push(d);
+}
+const pdummy=new THREE.Object3D();
+
+/* ================= 积水 ================= */
+const puddles=[];
+function puddle(x,z,r){
+  const geo=new THREE.CircleGeometry(r,40);geo.rotateX(-Math.PI/2);
+  const mat=new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,
+    uniforms:{
+      uTime:{value:0},uTrain:{value:-1000},uRadius:{value:r},
+      uCenter:{value:new THREE.Vector3()},
+      uRips:{value:Array.from({length:8},()=>new THREE.Vector4(0,0,-100,0))},
+    },
+    vertexShader:`uniform vec3 uCenter;varying vec2 vP;varying float vX;
+      void main(){vP=position.xz;vX=uCenter.x+position.x;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`uniform float uTime,uTrain,uRadius;uniform vec4 uRips[8];
+      varying vec2 vP;varying float vX;
+      void main(){
+        float d=length(vP);
+        float rim=1.0-smoothstep(uRadius*0.72,uRadius,d);
+        float n=sin(d*26.0-uTime*1.4)*0.5+sin(vP.x*18.0+uTime*0.9)*0.3+sin(vP.y*22.0-uTime*0.7)*0.3;
+        vec3 base=mix(vec3(0.36,0.52,0.66),vec3(0.66,0.82,0.93),0.45+0.35*n+rim*0.2);
+        float rip=0.0;
+        for(int i=0;i<8;i++){
+          float age=uTime-uRips[i].z;
+          if(uRips[i].w>0.0&&age>0.0&&age<3.0){
+            float dd=length(vP-vec2(uRips[i].x,uRips[i].y));
+            float r=age*0.85;
+            rip+=sin((dd-r)*26.0)*exp(-age*1.6)*exp(-abs(dd-r)*4.0)*uRips[i].w;
+          }
+        }
+        base+=vec3(0.35)*rip*0.5;
+        float band=exp(-pow((vX-uTrain)/4.5,2.0));
+        base+=vec3(0.5,0.6,0.7)*band*(0.55+0.4*n);
+        base*=1.0-band*0.18*(0.5+0.5*sin(vP.x*44.0+uTime*9.0));
+        float a=0.88*rim;
+        gl_FragColor=vec4(base,clamp(a,0.0,0.92));
+      }`});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.set(x,0.025,z);mesh.renderOrder=3;
+  scene.add(mesh);
+  const rec={mat,mesh,center:new THREE.Vector3(x,0,z),ri:0,cool:0};
+  puddles.push(rec);return rec;
+}
+const puddleY=[[-14,-4.2,1.0,PLAT_Y+.03],[-21,12.2,1.3,.03],[20.5,19.5,.8,.03]];
+puddleY.forEach(p=>{
+  const rec=puddle(p[0],p[1],p[2]);
+  rec.mat.uniforms.uCenter.value.set(p[0],0,p[1]);
+  rec.mesh.position.y=p[3];
+  rec.center.set(p[0],0,p[1]);
+});
+function triggerRipple(rec,lx,lz){
+  const now=performance.now()/1000;
+  const u=rec.mat.uniforms.uRips.value;
+  u[rec.ri].set(lx,lz,now,1.0);
+  rec.ri=(rec.ri+1)%8;
+}
+/* 注意：uTime 用 performance 时间 */
+
+/* ================= 小鸟 ================= */
+const bird={state:'idle',timer:rand(4,10),t:0,from:new THREE.Vector3(),to:new THREE.Vector3(),perch:new THREE.Vector3()};
+function buildBird(){
+  const g=new THREE.Group();
+  addT(g,new THREE.SphereGeometry(.16,8,8),toonMat(0x39414d),0,0,0,{s:[1.4,.85,.9]});
+  addT(g,new THREE.SphereGeometry(.09,8,8),toonMat(0x39414d),.24,.08,0);
+  addT(g,new THREE.ConeGeometry(.035,.1,6),toonMat(0xe8a33d),.36,.08,0,{r:[0,0,-Math.PI/2],cs:false});
+  addT(g,U,toonMat(0x2f3640),-.28,.02,0,{s:[.16,.05,.12],cs:false});
+  const wm=toonMat(0x4a5460);
+  const w1=new THREE.Group();w1.position.set(-.05,.08,0);g.add(w1);
+  addT(w1,U,wm,0,0,-.2,{s:[.34,.03,.24]});
+  const w2=new THREE.Group();w2.position.set(-.05,.08,0);g.add(w2);
+  addT(w2,U,wm,0,0,.2,{s:[.34,.03,.24]});
+  scene.add(g);
+  return {g,w1,w2};
+}
+const birdObj=buildBird();
+birdObj.g.visible=false;
+function perchPick(){
+  return pick([new THREE.Vector3(-14,7.22,poleZ),new THREE.Vector3(2.5,messY(2.5)+.05,poleZ+2.8),new THREE.Vector3(19,7.22,poleZ)]);
+}
+
+/* ================= 动画 ================= */
+window.__diag={err:null,train:0,headX:-80};
+const tclock=new THREE.Clock();
+let lastRipCheck=0;
+function animate(){
+  const dt=Math.min(tclock.getDelta(),.05);
+  const t=tclock.elapsedTime;
+  const now=performance.now()/1000;
+  /* 列车 */
+  if(train.state==='run'){
+    train.v=speedAt(train.headX);
+    train.headX+=train.v*dt;
+    if(train.headX-24>28){train.state='wait';train.waitT=rand(9,14);}
+  }else{
+    train.waitT-=dt;
+    if(train.waitT<=0){train.headX=-30;train.state='run';}
+  }
+  window.__diag.train=train.headX;
+  const bobJoint=x=>.008*Math.abs(Math.sin(x*.55));
+  cars.forEach((car,i)=>{
+    const cx=carCenter(i);
+    car.position.x=cx;
+    car.position.y=.012*Math.sin(t*6.3+i*1.7)+bobJoint(cx);
+  });
+  wheelPivots.forEach(pv=>pv.rotation.z+=train.v/0.34*dt);
+  glassMats.forEach(m=>{
+    m.uniforms.uTime.value=t;
+    m.uniforms.uTrain.value=carCenter(0);
+    m.uniforms.uTrain2.value=carCenter(2);
+  });
+  /* 电线震动 */
+  for(const w of wireObjs){
+    const pos=w.geo.attributes.position;
+    const bp=w.base;
+    for(let i=0;i<pos.count;i++){
+      const x=bp[i*3];
+      const breeze=.018*Math.sin(t*.9+x*.12+w.phase);
+      const win=windAt(x);
+      const vib=(w.contact?.03:.09)*win*Math.sin(16*t+x*1.3);
+      pos.setY(i,bp[i*3+1]+breeze+vib);
+    }
+    pos.needsUpdate=true;
+  }
+  /* 花瓣 */
+  for(let i=0;i<PETALS;i++){
+    const d=petalData[i];
+    if(d.state==='fall'){
+      d.v.y+=(-0.45-d.v.y)*2*dt;
+      const windX=.4*Math.sin(t*.5+d.p.z*.14+d.ph);
+      const windZ=.3*Math.sin(t*.4+d.p.x*.11+d.ph*1.7);
+      d.p.x+=(windX+d.v.x)*dt;
+      d.p.z+=(windZ+d.v.z)*dt;
+      d.p.y+=d.v.y*dt;
+      const win=windAt(d.p.x);
+      if(win>.03&&Math.abs(d.p.z+10)<11){
+        d.v.y+=1.6*win*dt;
+        d.p.x+=2.4*win*dt;
+        d.p.z+=.9*win*Math.sin(t*7+d.ph)*dt;
+        d.ev.x+=2.4*win*dt;d.ev.z+=1.8*win*dt;
+      }
+      d.e.x+=d.ev.x*dt;d.e.y+=d.ev.y*dt;d.e.z+=d.ev.z*dt;
+      if(d.p.y<.14){
+        d.p.y=.14;d.state='rest';d.timer=rand(1.5,4);d.ev.set(0,0,0);
+        for(const rec of puddles){
+          const lx=d.p.x-rec.center.x,lz=d.p.z-rec.center.z;
+          if(lx*lx+lz*lz<rec.mat.uniforms.uRadius.value*rec.mat.uniforms.uRadius.value*.8){
+            if(now>rec.cool){triggerRipple(rec,lx,lz);rec.cool=now+.7;}
+          }
+        }
+      }
+    }else if(d.state==='rest'){
+      d.timer-=dt;
+      d.p.x+=.02*dt;
+      if(d.timer<=0){d.state='fade';d.timer=.6;}
+    }else if(d.state==='fade'){
+      d.timer-=dt;
+      d.s=Math.max(.001,d.s-dt*2.2);
+      if(d.timer<=0)spawnPetal(d,false);
+    }
+    pdummy.position.copy(d.p);
+    pdummy.rotation.copy(d.e);
+    pdummy.scale.setScalar(d.s);
+    pdummy.updateMatrix();
+    petalMesh.setMatrixAt(i,pdummy.matrix);
+  }
+  petalMesh.instanceMatrix.needsUpdate=true;
+  /* 积水 */
+  for(const rec of puddles){
+    rec.mat.uniforms.uTime.value=now;
+    rec.mat.uniforms.uTrain.value=carCenter(0);
+  }
+  /* 时钟 */
+  const dte=new Date();
+  const sF=dte.getSeconds()+dte.getMilliseconds()/1000;
+  const secA=((sF-1+Math.min(1,sF%1/.22))/60)*Math.PI*2;
+  const minA=((dte.getMinutes()+dte.getSeconds()/60)/60)*Math.PI*2;
+  const hrA=(((dte.getHours()%12)+dte.getMinutes()/60)/12)*Math.PI*2;
+  clockHands.forEach(ch=>{ch.sc.rotation.z=-secA;ch.mn.rotation.z=-minA;ch.hr.rotation.z=-hrA;});
+  /* 道口 */
+  const crossActive=train.state==='run'&&train.headX>-4&&train.headX<53;
+  const target=crossActive?0:-1.32;
+  barrierArm.rotation.z=lerp(barrierArm.rotation.z||-1.32,target,Math.min(1,dt*2.2));
+  const blink=(t%1)<.5;
+  signalLights[0].emissiveIntensity=crossActive?(blink?2.6:.12):.1;
+  signalLights[1].emissiveIntensity=crossActive?(blink?.12:2.6):.1;
+  /* 检票口灯 */
+  const gc2=Math.floor(t/2.4)%3;
+  gateLights.forEach((m,i)=>{m.emissiveIntensity=i===gc2?.9:.12;});
+  /* 贩卖机灯 */
+  vendMats.forEach(m=>m.emissiveIntensity=.75+.25*Math.sin(t*3.1));
+  /* 云 / 云影 */
+  clouds.forEach(cl=>{cl.g.position.x+=cl.v*dt;if(cl.g.position.x>75)cl.g.position.x=-75;});
+  cloudShadows.forEach(cs=>{cs.sp.position.x+=cs.v*dt;if(cs.sp.position.x>45)cs.sp.position.x=-45;});
+  /* 小鸟 */
+  const bd=bird;
+  if(bd.state==='idle'){
+    bd.timer-=dt;
+    if(bd.timer<=0){bd.state='flyin';bd.t=0;bd.perch=perchPick();bd.from.set(-45,rand(8,12),rand(-25,10));bd.to=bd.perch.clone();birdObj.g.visible=true;}
+  }else if(bd.state==='flyin'){
+    bd.t+=dt/2.8;
+    const e=bd.t<.5?2*bd.t*bd.t:1-Math.pow(-2*bd.t+2,2)/2;
+    birdObj.g.position.lerpVectors(bd.from,bd.to,Math.min(1,e));
+    const dir=bd.to.clone().sub(bd.from);birdObj.g.rotation.y=Math.atan2(-dir.z,dir.x);
+    birdObj.w1.rotation.x=Math.sin(t*12)*.9;birdObj.w2.rotation.x=-Math.sin(t*12)*.9;
+    if(bd.t>=1){bd.state='perch';bd.timer=rand(8,20);}
+  }else if(bd.state==='perch'){
+    birdObj.g.position.set(bd.perch.x,bd.perch.y+.03+.02*Math.sin(t*2.5),bd.perch.z);
+    birdObj.w1.rotation.x=lerp(birdObj.w1.rotation.x,0,dt*6);
+    birdObj.w2.rotation.x=lerp(birdObj.w2.rotation.x,0,dt*6);
+    bd.timer-=dt;
+    if(bd.timer<=0){bd.state='flyout';bd.t=0;bd.to.set(45,rand(9,14),rand(5,30));}
+  }else if(bd.state==='flyout'){
+    bd.t+=dt/2.6;
+    birdObj.g.position.lerpVectors(bd.perch,bd.to,Math.min(1,bd.t));
+    const dir=bd.to.clone().sub(bd.perch);birdObj.g.rotation.y=Math.atan2(-dir.z,dir.x);
+    birdObj.w1.rotation.x=Math.sin(t*13)*.9;birdObj.w2.rotation.x=-Math.sin(t*13)*.9;
+    if(bd.t>=1){bd.state='idle';bd.timer=rand(12,30);birdObj.g.visible=false;}
+  }
+  controls.update();
+  renderer.render(scene,camera);
+}
+window.__view={renderer,scene,camera,controls,train,animate,
+  resize(){VW=innerWidth||VW;VH=innerHeight||VH;camera.aspect=VW/VH;camera.updateProjectionMatrix();renderer.setSize(VW,VH);renderer.render(scene,camera);}};
+renderer.setAnimationLoop(animate);
+
+}catch(e){
+  window.__diag=window.__diag||{err:null,train:0};
+  window.__diag.err=String(e.message||e);
+  document.title='ERR: '+e.message;
+  console.error(e);
+}
+</script>
+</body>
+</html>
