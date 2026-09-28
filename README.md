@@ -2,6 +2,8 @@
 
 一个单文件的日式火车站微缩沙盘：三渲二卡通渲染、白昼樱花、通勤电车进站、可自由拖拽旋转缩放的"沙盒"景观模型。无任何 UI 界面元素。
 
+> 本项目由本地部署的 **Qwen3.8-27B** 生成，并完成浏览器端功能测试（列车运行、裁切、动效、渲染验证）。
+
 > **▶ 直接打开沙盘（免下载）**：[givfei5-hash.github.io/sakura-station-diorama](https://givfei5-hash.github.io/sakura-station-diorama/)
 
 ![preview](assets/preview.png)
