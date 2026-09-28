@@ -2,18 +2,18 @@
 
 一个单文件的日式火车站微缩沙盘：三渲二卡通渲染、白昼樱花、通勤电车进站、可自由拖拽旋转缩放的"沙盒"景观模型。无任何 UI 界面元素。
 
+> **▶ 直接打开沙盘（免下载）**：[givfei5-hash.github.io/sakura-station-diorama](https://givfei5-hash.github.io/sakura-station-diorama/)
+
 ![preview](assets/preview.png)
 
 ## 怎么玩
 
-用浏览器直接打开 `index.html` 即可（需联网，three.js 走 jsDelivr CDN）：
+直接点上面的链接即可在线打开（GitHub Pages），或用浏览器打开仓库里的 `index.html`（需联网，three.js 走 jsDelivr CDN）：
 
 - 左键拖拽：旋转视角
 - 滚轮：缩放
 - 右键拖拽：平移
 - 默认机位为整个底座的全景第三视角，像看一个摆在桌上的模型
-
-也可以部署到 GitHub Pages，打开就是沙盘。
 
 ## 场景内容
 
